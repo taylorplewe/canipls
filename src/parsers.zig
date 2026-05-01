@@ -54,6 +54,7 @@ pub fn parseCodeAndGetDiagnostics(allocator: std.mem.Allocator, code: []const u8
             const tag_name = code[tag_node.startByte()..tag_node.endByte()];
             log.info("tag name: {s:<16}", .{tag_name});
 
+            // send diagnostic on <geolocation> element
             if (std.mem.eql(u8, tag_name, "geolocation")) {
                 try diagnostics.append(
                     allocator,
@@ -68,9 +69,36 @@ pub fn parseCodeAndGetDiagnostics(allocator: std.mem.Allocator, code: []const u8
                                 .line = tag_node.endPoint().row,
                             },
                         },
-                        .message = "uh oh u cant use geolocation lmaoooo",
+                        .message = "This element only has 75.86% global support on caniuse.com",
+                        .severity = .Warning,
                     },
                 );
+            }
+
+            for (match.captures[1..]) |capture| {
+                const attr_node = capture.node;
+                const attr_name = code[attr_node.startByte()..attr_node.endByte()];
+
+                // send diagnostic on "virtualkeyboardpolicy" attribute
+                if (std.mem.eql(u8, attr_name, "virtualkeyboardpolicy")) {
+                    try diagnostics.append(
+                        allocator,
+                        .{
+                            .range = .{
+                                .start = .{
+                                    .character = attr_node.startPoint().column,
+                                    .line = attr_node.startPoint().row,
+                                },
+                                .end = .{
+                                    .character = attr_node.endPoint().column,
+                                    .line = attr_node.endPoint().row,
+                                },
+                            },
+                            .message = "This attribute only has 75.86% global support on caniuse.com",
+                            .severity = .Warning,
+                        },
+                    );
+                }
             }
         }
     }

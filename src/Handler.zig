@@ -41,16 +41,12 @@ pub fn initialize(
 /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didOpen
 pub fn @"textDocument/didOpen"(
     self: *Handler,
-    _: std.mem.Allocator,
+    allocator: std.mem.Allocator,
     params: lsp.types.TextDocument.DidOpenParams,
 ) !void {
     const document_text = params.textDocument.text;
 
-    // TEMP
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-
-    const diagnostics = parsers.parseCodeAndGetDiagnostics(arena.allocator(), document_text) catch &.{};
+    const diagnostics = parsers.parseCodeAndGetDiagnostics(allocator, document_text) catch &.{};
 
     const publish_diagnostics_params: lsp.types.publish_diagnostics.Params = .{
         .uri = params.textDocument.uri,
@@ -58,7 +54,7 @@ pub fn @"textDocument/didOpen"(
     };
     try self.transport.writeNotification(
         self.io.*,
-        arena.allocator(),
+        allocator,
         "textDocument/publishDiagnostics",
         lsp.types.publish_diagnostics.Params,
         publish_diagnostics_params,
@@ -70,11 +66,30 @@ pub fn @"textDocument/didOpen"(
 
 /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didChange
 pub fn @"textDocument/didChange"(
-    _: *Handler,
-    _: std.mem.Allocator,
-    _: lsp.types.TextDocument.DidChangeParams,
+    self: *Handler,
+    allocator: std.mem.Allocator,
+    params: lsp.types.TextDocument.DidChangeParams,
 ) !void {
     log.info("textDocument/didChange", .{});
+
+    // since we opted for "full" didChange notifications, we just recieve the entire document's text in the notification.
+    // thus, only 1 change object is needed.
+    const document_text = params.contentChanges[0].text_document_content_change_whole_document.text;
+
+    const diagnostics = parsers.parseCodeAndGetDiagnostics(allocator, document_text) catch &.{};
+
+    const publish_diagnostics_params: lsp.types.publish_diagnostics.Params = .{
+        .uri = params.textDocument.uri,
+        .diagnostics = diagnostics,
+    };
+    try self.transport.writeNotification(
+        self.io.*,
+        allocator,
+        "textDocument/publishDiagnostics",
+        lsp.types.publish_diagnostics.Params,
+        publish_diagnostics_params,
+        .{},
+    );
 }
 
 /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didSave
