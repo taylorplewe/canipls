@@ -8,6 +8,14 @@
             .url = "git+https://github.com/zigtools/lsp-kit.git#b886a2b0d5cee85ecbcc3089b863f7517cc9ff7f",
             .hash = "lsp_kit-0.1.0-bi_PL3IyDACfp1xdTnkiOHEok2YpPCCCJHuuOcNzjl1D",
         },
+        .tree_sitter = .{
+            .url = "git+https://github.com/tree-sitter/zig-tree-sitter.git#b55d4977d61330390fc733944da06106ff972660",
+            .hash = "tree_sitter-0.26.0-8heIf3CaAQB4SSumoGzq3gLSz2rkvXxcKFyskRWqDGBz",
+        },
+        .tree_sitter_html = .{
+            .url = "git+https://github.com/tree-sitter/tree-sitter-html.git#73a3947324f6efddf9e17c0ea58d454843590cc0",
+            .hash = "N-V-__8AAEmOAwDdgRRlet5t1CEdpX1YMCbfhFiIbj_vsBH9",
+        },
     },
     .paths = .{
         "build.zig",

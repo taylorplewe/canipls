@@ -6,17 +6,24 @@ pub fn build(b: *std.Build) void {
 
     const lsp_kit = b.dependency("lsp_kit", .{});
 
+    const tree_sitter = b.dependency("tree_sitter", .{ .target = target, .optimize = optimize });
+    const tree_sitter_html = b.dependency("tree_sitter_html", .{ .target = target, .optimize = optimize });
+
+    const exe_mod = b.createModule(.{
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "lsp", .module = lsp_kit.module("lsp") },
+            .{ .name = "tree-sitter", .module = tree_sitter.module("tree_sitter") },
+        },
+    });
+    exe_mod.addCSourceFile(.{ .file = tree_sitter_html.path("src/scanner.c") });
+    exe_mod.addCSourceFile(.{ .file = tree_sitter_html.path("src/parser.c") });
+
     const exe = b.addExecutable(.{
         .name = "caniuse-ls",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/main.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = "lsp", .module = lsp_kit.module("lsp") },
-            },
-        }),
+        .root_module = exe_mod,
     });
-
     b.installArtifact(exe);
 }

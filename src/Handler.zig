@@ -1,8 +1,21 @@
 const std = @import("std");
 const lsp = @import("lsp");
+
+const parsers = @import("parsers.zig");
+
 const log = std.log.scoped(.caniuse_ls);
 
 const Handler = @This();
+
+io: *const std.Io,
+transport: *lsp.Transport,
+
+pub fn init(io: *const std.Io, transport: *lsp.Transport) Handler {
+    return .{
+        .io = io,
+        .transport = transport,
+    };
+}
 
 pub fn initialize(
     _: *Handler,
@@ -27,13 +40,30 @@ pub fn initialize(
 
 /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didOpen
 pub fn @"textDocument/didOpen"(
-    _: *Handler,
+    self: *Handler,
     _: std.mem.Allocator,
     params: lsp.types.TextDocument.DidOpenParams,
 ) !void {
     const document_text = params.textDocument.text;
 
-    // TODO parse HTML with tree sitter and publish diagnostic
+    // TEMP
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    const diagnostics = parsers.parseCodeAndGetDiagnostics(arena.allocator(), document_text) catch &.{};
+
+    const publish_diagnostics_params: lsp.types.publish_diagnostics.Params = .{
+        .uri = params.textDocument.uri,
+        .diagnostics = diagnostics,
+    };
+    try self.transport.writeNotification(
+        self.io.*,
+        arena.allocator(),
+        "textDocument/publishDiagnostics",
+        lsp.types.publish_diagnostics.Params,
+        publish_diagnostics_params,
+        .{},
+    );
 
     log.info("textDocument/didOpen", .{});
 }
