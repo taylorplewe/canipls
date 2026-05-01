@@ -1,21 +1,22 @@
 const std = @import("std");
-const Io = std.Io;
+const lsp = @import("lsp");
+const log = std.log.scoped(.caniuse_ls);
+
+const Handler = @import("Handler.zig");
 
 pub fn main(init: std.process.Init) !void {
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+    var read_buf: [2048]u8 = undefined;
+    var stdio_transport: lsp.Transport.Stdio = .init(&read_buf, .stdin(), .stdout());
+    const transport: *lsp.Transport = &stdio_transport.transport;
 
-    const arena: std.mem.Allocator = init.arena.allocator();
+    var handler: Handler = .{};
 
-    const args = try init.minimal.args.toSlice(arena);
-    for (args) |arg| {
-        std.log.info("arg: {s}", .{arg});
-    }
-
-    const io = init.io;
-
-    var stdout_buffer: [1024]u8 = undefined;
-    var stdout_file_writer: Io.File.Writer = .init(.stdout(), io, &stdout_buffer);
-    const stdout_writer = &stdout_file_writer.interface;
-
-    try stdout_writer.flush(); // Don't forget to flush!
+    std.log.info("running caniuse-ls server...", .{});
+    try lsp.basic_server.run(
+        init.io,
+        init.gpa,
+        transport,
+        &handler,
+        log.err,
+    );
 }
