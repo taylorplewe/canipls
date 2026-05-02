@@ -26,6 +26,8 @@ fn deinit() void {
 fn parse(allocator: std.mem.Allocator, code: []const u8) []const lsp.types.Diagnostic {
     const QUERY_PROPS = "(property_name) @propname";
     const QUERY_AT_RULES = "(at_keyword) @atrule";
+    const QUERY_PSEUDO_ELEMENT_SELECTORS = "(pseudo_element_selector (tag_name) @pseudoelementname)";
+    const QUERY_PSEUDO_CLASS_SELECTORS = "(pseudo_class_selector (class_name) @pseudoelementname)";
 
     const parser = ts.Parser.create();
     defer parser.destroy();
@@ -50,6 +52,16 @@ fn parse(allocator: std.mem.Allocator, code: []const u8) []const lsp.types.Diagn
             return &.{};
         };
         defer query_at_rules.destroy();
+        const query_pseudo_element_selectors = ts.Query.create(lang_css, QUERY_PSEUDO_ELEMENT_SELECTORS, &error_offset) catch |err| {
+            log.err("could not create tree-sitter query: {}", .{err});
+            return &.{};
+        };
+        defer query_pseudo_element_selectors.destroy();
+        const query_pseudo_class_selectors = ts.Query.create(lang_css, QUERY_PSEUDO_CLASS_SELECTORS, &error_offset) catch |err| {
+            log.err("could not create tree-sitter query: {}", .{err});
+            return &.{};
+        };
+        defer query_pseudo_class_selectors.destroy();
 
         // properties
         const cursor = ts.QueryCursor.create();
@@ -65,7 +77,7 @@ fn parse(allocator: std.mem.Allocator, code: []const u8) []const lsp.types.Diagn
             }
         }
 
-        // at-rules
+        // @at-rules
         cursor.exec(query_at_rules, root_node);
         while (cursor.nextMatch()) |match| {
             const at_rule_node = match.captures[0].node;
@@ -74,6 +86,30 @@ fn parse(allocator: std.mem.Allocator, code: []const u8) []const lsp.types.Diagn
             // TEMP
             if (std.mem.eql(u8, at_rule_name, "@view-transition")) {
                 diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(allocator, &at_rule_node, .CssAtRule, 86.99)) catch return &.{};
+            }
+        }
+
+        // ::pseudo-element selectors
+        cursor.exec(query_pseudo_element_selectors, root_node);
+        while (cursor.nextMatch()) |match| {
+            const selector_node = match.captures[0].node;
+            const selector_name = code[selector_node.startByte()..selector_node.endByte()];
+
+            // TEMP
+            if (std.mem.eql(u8, selector_name, "column")) {
+                diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(allocator, &selector_node, .CssPseudoElementSelector, 71.17)) catch return &.{};
+            }
+        }
+
+        // :pseudo-class selectors
+        cursor.exec(query_pseudo_class_selectors, root_node);
+        while (cursor.nextMatch()) |match| {
+            const selector_node = match.captures[0].node;
+            const selector_name = code[selector_node.startByte()..selector_node.endByte()];
+
+            // TEMP
+            if (std.mem.eql(u8, selector_name, "picker")) {
+                diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(allocator, &selector_node, .CssPseudoClassSelector, 71.17)) catch return &.{};
             }
         }
     }

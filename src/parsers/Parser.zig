@@ -14,6 +14,8 @@ const ElementKind = enum {
     HtmlAttribute,
     CssProp,
     CssAtRule,
+    CssPseudoElementSelector,
+    CssPseudoClassSelector,
 
     fn getWord(self: ElementKind) []const u8 {
         return switch (self) {
@@ -21,6 +23,8 @@ const ElementKind = enum {
             .HtmlAttribute => "attribute",
             .CssProp => "property",
             .CssAtRule => "at-rule",
+            .CssPseudoElementSelector => "pseudo element selector",
+            .CssPseudoClassSelector => "pseudo class selector",
         };
     }
 };

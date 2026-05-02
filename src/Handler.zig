@@ -86,8 +86,6 @@ pub fn @"textDocument/didChange"(
     allocator: std.mem.Allocator,
     params: lsp.types.TextDocument.DidChangeParams,
 ) !void {
-    log.info("changed", .{});
-
     // since we opted for "full" didChange notifications, we just recieve the entire document's text in the notification.
     // thus, only 1 change object is needed.
     const document_text = params.contentChanges[0].text_document_content_change_whole_document.text;
