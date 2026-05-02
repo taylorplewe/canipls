@@ -23,7 +23,12 @@ fn init() void {
 fn deinit() void {
     lang_css.destroy();
 }
-fn parse(allocator: std.mem.Allocator, code: []const u8) []const lsp.types.Diagnostic {
+fn parse(
+    allocator: std.mem.Allocator,
+    code: []const u8,
+    start_column: u32,
+    start_row: u32,
+) []const lsp.types.Diagnostic {
     const QUERY_PROPS = "(property_name) @propname";
     const QUERY_AT_RULES = "(at_keyword) @atrule";
     const QUERY_PSEUDO_ELEMENT_SELECTORS = "(pseudo_element_selector (tag_name) @pseudoelementname)";
@@ -73,7 +78,14 @@ fn parse(allocator: std.mem.Allocator, code: []const u8) []const lsp.types.Diagn
 
             // TEMP
             if (std.mem.eql(u8, prop_name, "interpolate-size")) {
-                diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(allocator, &prop_node, .CssProp, 71.83)) catch return &.{};
+                diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                    allocator,
+                    &prop_node,
+                    .CssProp,
+                    71.83,
+                    start_column,
+                    start_row,
+                )) catch return &.{};
             }
         }
 
@@ -85,7 +97,14 @@ fn parse(allocator: std.mem.Allocator, code: []const u8) []const lsp.types.Diagn
 
             // TEMP
             if (std.mem.eql(u8, at_rule_name, "@view-transition")) {
-                diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(allocator, &at_rule_node, .CssAtRule, 86.99)) catch return &.{};
+                diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                    allocator,
+                    &at_rule_node,
+                    .CssAtRule,
+                    86.99,
+                    start_column,
+                    start_row,
+                )) catch return &.{};
             }
         }
 
@@ -97,7 +116,14 @@ fn parse(allocator: std.mem.Allocator, code: []const u8) []const lsp.types.Diagn
 
             // TEMP
             if (std.mem.eql(u8, selector_name, "column")) {
-                diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(allocator, &selector_node, .CssPseudoElementSelector, 71.17)) catch return &.{};
+                diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                    allocator,
+                    &selector_node,
+                    .CssPseudoElementSelector,
+                    71.17,
+                    start_column,
+                    start_row,
+                )) catch return &.{};
             }
         }
 
@@ -109,7 +135,14 @@ fn parse(allocator: std.mem.Allocator, code: []const u8) []const lsp.types.Diagn
 
             // TEMP
             if (std.mem.eql(u8, selector_name, "picker")) {
-                diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(allocator, &selector_node, .CssPseudoClassSelector, 71.17)) catch return &.{};
+                diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                    allocator,
+                    &selector_node,
+                    .CssPseudoClassSelector,
+                    71.17,
+                    start_column,
+                    start_row,
+                )) catch return &.{};
             }
         }
     }

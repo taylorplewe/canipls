@@ -7,7 +7,12 @@ const log = std.log.scoped(.caniuse_ls);
 
 init: *const fn () void,
 deinit: *const fn () void,
-parse: *const fn (allocator: std.mem.Allocator, code: []const u8) []const lsp.types.Diagnostic,
+parse: *const fn (
+    allocator: std.mem.Allocator,
+    code: []const u8,
+    start_column: u32,
+    start_row: u32,
+) []const lsp.types.Diagnostic,
 
 const ElementKind = enum {
     HtmlElement,
@@ -34,11 +39,13 @@ pub fn getLspDiagnosticFromTsNode(
     node: *const ts.Node,
     element_kind: ElementKind,
     global_support_percentage: f32,
+    start_column: u32,
+    start_row: u32,
 ) lsp.types.Diagnostic {
     return .{
         .range = .{
-            .start = .{ .character = node.startPoint().column, .line = node.startPoint().row },
-            .end = .{ .character = node.endPoint().column, .line = node.endPoint().row },
+            .start = .{ .character = node.startPoint().column + start_column, .line = node.startPoint().row + start_row },
+            .end = .{ .character = node.endPoint().column + start_column, .line = node.endPoint().row + start_row },
         },
         .message = getDiagnosticPhraseFromElement(
             allocator,

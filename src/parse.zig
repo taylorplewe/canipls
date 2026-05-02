@@ -33,9 +33,9 @@ pub fn parseCodeAndGetDiagnostics(
     code: []const u8,
 ) []const lsp.types.Diagnostic {
     switch (language_kind) {
-        .html => return parsers.get("html").?.parse(allocator, code),
-        .css => return parsers.get("css").?.parse(allocator, code),
-        .javascript => return parsers.get("javascript").?.parse(allocator, code),
+        .html => return parsers.get("html").?.parse(allocator, code, 0, 0),
+        .css => return parsers.get("css").?.parse(allocator, code, 0, 0),
+        .javascript => return parsers.get("javascript").?.parse(allocator, code, 0, 0),
         else => {},
     }
 

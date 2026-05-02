@@ -21,7 +21,12 @@ fn init() void {
 fn deinit() void {
     lang_javascript.destroy();
 }
-fn parse(allocator: std.mem.Allocator, code: []const u8) []const lsp.types.Diagnostic {
+fn parse(
+    allocator: std.mem.Allocator,
+    code: []const u8,
+    _: u32,
+    _: u32,
+) []const lsp.types.Diagnostic {
     _ = allocator; // autofix
     _ = code; // autofix
     return &.{};
