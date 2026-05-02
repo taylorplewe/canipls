@@ -25,6 +25,9 @@ fn parseCodeAndPublishDiagnostics(
     code: []const u8,
 ) !void {
     const diagnostics = parse.parseCodeAndGetDiagnostics(allocator, file_lang, code);
+    if (diagnostics.len == 0) {
+        return;
+    }
 
     const publish_diagnostics_params: lsp.types.publish_diagnostics.Params = .{
         .uri = file_uri,
@@ -74,7 +77,7 @@ pub fn @"textDocument/didOpen"(
     try parseCodeAndPublishDiagnostics(
         self,
         allocator,
-        .html,
+        params.textDocument.languageId,
         params.textDocument.uri,
         document_text,
     );
@@ -86,19 +89,44 @@ pub fn @"textDocument/didChange"(
     allocator: std.mem.Allocator,
     params: lsp.types.TextDocument.DidChangeParams,
 ) !void {
-    log.info("textDocument/didChange", .{});
-
     // since we opted for "full" didChange notifications, we just recieve the entire document's text in the notification.
     // thus, only 1 change object is needed.
     const document_text = params.contentChanges[0].text_document_content_change_whole_document.text;
 
-    try parseCodeAndPublishDiagnostics(
-        self,
-        allocator,
-        .html,
-        params.textDocument.uri,
-        document_text,
-    );
+    log.info("changed", .{});
+
+    // TEMP: this is a terrible way to check file type. There's like fifty different extensions that JavaScript source files can have.
+    // Unfortunately, didChange notifications do not send file language type
+    const file_lang_str: ?[]const u8 = blk: {
+        const uri = params.textDocument.uri;
+        const last_index_of_period = std.mem.findScalarLast(u8, uri, '.');
+        if (last_index_of_period) |index| {
+            break :blk uri[index + 1 ..];
+        }
+        break :blk null;
+    };
+    log.info("file_lang_str: {s}", .{file_lang_str.?});
+    if (file_lang_str) |lang_str| {
+        const file_lang: lsp.types.TextDocument.LanguageKind =
+            if (std.mem.eql(u8, lang_str, "html"))
+                .html
+            else if (std.mem.eql(u8, lang_str, "css"))
+                .css
+            else if (std.mem.eql(u8, lang_str, "js"))
+                .javascript
+            else
+                return;
+
+        log.info("file_lang: {}", .{file_lang});
+
+        try parseCodeAndPublishDiagnostics(
+            self,
+            allocator,
+            file_lang,
+            params.textDocument.uri,
+            document_text,
+        );
+    }
 }
 
 /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didClose

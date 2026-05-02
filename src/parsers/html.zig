@@ -7,15 +7,6 @@ const Parser = @import("Parser.zig");
 extern fn tree_sitter_html() callconv(.c) *ts.Language;
 var lang_html: *ts.Language = undefined;
 
-const START_TAG_NAME_AND_ATTRS_QUERY =
-    \\(start_tag
-    \\  (tag_name) @tagname
-    \\  (attribute
-    \\    (attribute_name) @attrname
-    \\  )*
-    \\)
-;
-
 pub fn HtmlParser() Parser {
     return .{
         .init = init,
@@ -31,6 +22,15 @@ fn deinit() void {
     lang_html.destroy();
 }
 fn parse(allocator: std.mem.Allocator, code: []const u8) []const lsp.types.Diagnostic {
+    const START_TAG_NAME_AND_ATTRS_QUERY =
+        \\(start_tag
+        \\  (tag_name) @tagname
+        \\  (attribute
+        \\    (attribute_name) @attrname
+        \\  )*
+        \\)
+    ;
+
     const parser = ts.Parser.create();
     defer parser.destroy();
     parser.setLanguage(lang_html) catch return &.{};
