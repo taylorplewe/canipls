@@ -32,10 +32,6 @@ pub fn parseCodeAndGetDiagnostics(
     language_kind: lsp.types.TextDocument.LanguageKind,
     code: []const u8,
 ) []const lsp.types.Diagnostic {
-    if (language_kind == .css) {
-        log.info("hey uh I got a css", .{});
-    }
-
     switch (language_kind) {
         .html => return parsers.get("html").?.parse(allocator, code),
         .css => return parsers.get("css").?.parse(allocator, code),

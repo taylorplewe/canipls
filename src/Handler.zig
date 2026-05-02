@@ -103,7 +103,6 @@ pub fn @"textDocument/didChange"(
         }
         break :blk null;
     };
-    log.info("file_lang_str: {s}", .{file_lang_str.?});
     if (file_lang_str) |lang_str| {
         const file_lang: lsp.types.TextDocument.LanguageKind =
             if (std.mem.eql(u8, lang_str, "html"))
@@ -114,8 +113,6 @@ pub fn @"textDocument/didChange"(
                 .javascript
             else
                 return;
-
-        log.info("file_lang: {}", .{file_lang});
 
         try parseCodeAndPublishDiagnosticsForFile(
             self,

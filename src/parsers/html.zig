@@ -57,23 +57,7 @@ fn parse(allocator: std.mem.Allocator, code: []const u8) []const lsp.types.Diagn
 
             // send diagnostic on <geolocation> element
             if (std.mem.eql(u8, tag_name, "geolocation")) {
-                diagnostics.append(
-                    allocator,
-                    .{
-                        .range = .{
-                            .start = .{
-                                .character = tag_node.startPoint().column,
-                                .line = tag_node.startPoint().row,
-                            },
-                            .end = .{
-                                .character = tag_node.endPoint().column,
-                                .line = tag_node.endPoint().row,
-                            },
-                        },
-                        .message = "This element only has 75.86% global support on caniuse.com",
-                        .severity = .Warning,
-                    },
-                ) catch return &.{};
+                diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(allocator, &tag_node, .HtmlElement, 75.86)) catch return &.{};
             }
 
             for (match.captures[1..]) |capture| {
@@ -82,23 +66,7 @@ fn parse(allocator: std.mem.Allocator, code: []const u8) []const lsp.types.Diagn
 
                 // send diagnostic on "virtualkeyboardpolicy" attribute
                 if (std.mem.eql(u8, attr_name, "virtualkeyboardpolicy")) {
-                    diagnostics.append(
-                        allocator,
-                        .{
-                            .range = .{
-                                .start = .{
-                                    .character = attr_node.startPoint().column,
-                                    .line = attr_node.startPoint().row,
-                                },
-                                .end = .{
-                                    .character = attr_node.endPoint().column,
-                                    .line = attr_node.endPoint().row,
-                                },
-                            },
-                            .message = "This attribute only has 75.86% global support on caniuse.com",
-                            .severity = .Warning,
-                        },
-                    ) catch return &.{};
+                    diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(allocator, &attr_node, .HtmlAttribute, 75.86)) catch return &.{};
                 }
             }
         }
