@@ -3,7 +3,7 @@ const lsp = @import("lsp");
 const log = std.log.scoped(.caniuse_ls);
 
 const Handler = @import("Handler.zig");
-const parsers = @import("parsers.zig");
+const parsers = @import("parse.zig");
 
 pub fn main(init: std.process.Init) !void {
     var read_buf: [2048]u8 = undefined;

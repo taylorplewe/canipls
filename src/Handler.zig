@@ -1,7 +1,7 @@
 const std = @import("std");
 const lsp = @import("lsp");
 
-const parsers = @import("parsers.zig");
+const parse = @import("parse.zig");
 
 const log = std.log.scoped(.caniuse_ls);
 
@@ -10,13 +10,37 @@ const Handler = @This();
 io: *const std.Io,
 transport: *lsp.Transport,
 
+// helper functions
 pub fn init(io: *const std.Io, transport: *lsp.Transport) Handler {
     return .{
         .io = io,
         .transport = transport,
     };
 }
+fn parseCodeAndPublishDiagnostics(
+    self: *Handler,
+    allocator: std.mem.Allocator,
+    file_lang: lsp.types.TextDocument.LanguageKind,
+    file_uri: []const u8,
+    code: []const u8,
+) !void {
+    const diagnostics = parse.parseCodeAndGetDiagnostics(allocator, file_lang, code);
 
+    const publish_diagnostics_params: lsp.types.publish_diagnostics.Params = .{
+        .uri = file_uri,
+        .diagnostics = diagnostics,
+    };
+    try self.transport.writeNotification(
+        self.io.*,
+        allocator,
+        "textDocument/publishDiagnostics",
+        lsp.types.publish_diagnostics.Params,
+        publish_diagnostics_params,
+        .{},
+    );
+}
+
+// LSP handlers
 pub fn initialize(
     _: *Handler,
     _: std.mem.Allocator,
@@ -26,7 +50,6 @@ pub fn initialize(
         .textDocumentSync = .{
             .text_document_sync_options = .{
                 .change = .Full,
-                .save = .{ .bool = true },
                 .openClose = true,
             },
         },
@@ -44,24 +67,17 @@ pub fn @"textDocument/didOpen"(
     allocator: std.mem.Allocator,
     params: lsp.types.TextDocument.DidOpenParams,
 ) !void {
+    log.info("textDocument/didOpen", .{});
+
     const document_text = params.textDocument.text;
 
-    const diagnostics = parsers.parseCodeAndGetDiagnostics(allocator, document_text) catch &.{};
-
-    const publish_diagnostics_params: lsp.types.publish_diagnostics.Params = .{
-        .uri = params.textDocument.uri,
-        .diagnostics = diagnostics,
-    };
-    try self.transport.writeNotification(
-        self.io.*,
+    try parseCodeAndPublishDiagnostics(
+        self,
         allocator,
-        "textDocument/publishDiagnostics",
-        lsp.types.publish_diagnostics.Params,
-        publish_diagnostics_params,
-        .{},
+        .html,
+        params.textDocument.uri,
+        document_text,
     );
-
-    log.info("textDocument/didOpen", .{});
 }
 
 /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didChange
@@ -76,38 +92,17 @@ pub fn @"textDocument/didChange"(
     // thus, only 1 change object is needed.
     const document_text = params.contentChanges[0].text_document_content_change_whole_document.text;
 
-    const diagnostics = parsers.parseCodeAndGetDiagnostics(allocator, document_text) catch &.{};
-
-    const publish_diagnostics_params: lsp.types.publish_diagnostics.Params = .{
-        .uri = params.textDocument.uri,
-        .diagnostics = diagnostics,
-    };
-    try self.transport.writeNotification(
-        self.io.*,
+    try parseCodeAndPublishDiagnostics(
+        self,
         allocator,
-        "textDocument/publishDiagnostics",
-        lsp.types.publish_diagnostics.Params,
-        publish_diagnostics_params,
-        .{},
+        .html,
+        params.textDocument.uri,
+        document_text,
     );
 }
 
-/// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didSave
-pub fn @"textDocument/didSave"(
-    _: *Handler,
-    _: std.mem.Allocator,
-    _: lsp.types.TextDocument.DidSaveParams,
-) !void {
-    log.info("textDocument/didSave", .{});
-}
-
 /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didClose
-pub fn @"textDocument/didClose"(
-    _: *Handler,
-    _: std.mem.Allocator,
-    _: lsp.types.TextDocument.DidCloseParams,
-) !void {
-    log.info("textDocument/didClose", .{});
-}
+/// we must declare this function since `didOpen` and `didClose` are opted into together
+pub fn @"textDocument/didClose"(_: *Handler, _: std.mem.Allocator, _: lsp.types.TextDocument.DidCloseParams) !void {}
 
 pub fn onResponse(_: *Handler, _: std.mem.Allocator, _: lsp.JsonRPCMessage.Response) void {}

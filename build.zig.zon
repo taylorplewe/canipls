@@ -16,6 +16,14 @@
             .url = "git+https://github.com/tree-sitter/tree-sitter-html.git#73a3947324f6efddf9e17c0ea58d454843590cc0",
             .hash = "N-V-__8AAEmOAwDdgRRlet5t1CEdpX1YMCbfhFiIbj_vsBH9",
         },
+        .tree_sitter_css = .{
+            .url = "git+https://github.com/tree-sitter/tree-sitter-css.git#dda5cfc5722c429eaba1c910ca32c2c0c5bb1a3f",
+            .hash = "N-V-__8AAKwvEACP3YMpMDoRyyZPOdDN1n-zdTZRWTc3uufz",
+        },
+        .tree_sitter_javascript = .{
+            .url = "git+https://github.com/tree-sitter/tree-sitter-javascript.git#58404d8cf191d69f2674a8fd507bd5776f46cb11",
+            .hash = "N-V-__8AANlfOQDpOAP-6YMQeJ2nQetX1OpUshQr903bnIHU",
+        },
     },
     .paths = .{
         "build.zig",
