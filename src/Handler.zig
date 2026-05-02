@@ -17,7 +17,7 @@ pub fn init(io: *const std.Io, transport: *lsp.Transport) Handler {
         .transport = transport,
     };
 }
-fn parseCodeAndPublishDiagnostics(
+fn parseCodeAndPublishDiagnosticsForFile(
     self: *Handler,
     allocator: std.mem.Allocator,
     file_lang: lsp.types.TextDocument.LanguageKind,
@@ -25,9 +25,6 @@ fn parseCodeAndPublishDiagnostics(
     code: []const u8,
 ) !void {
     const diagnostics = parse.parseCodeAndGetDiagnostics(allocator, file_lang, code);
-    if (diagnostics.len == 0) {
-        return;
-    }
 
     const publish_diagnostics_params: lsp.types.publish_diagnostics.Params = .{
         .uri = file_uri,
@@ -74,7 +71,7 @@ pub fn @"textDocument/didOpen"(
 
     const document_text = params.textDocument.text;
 
-    try parseCodeAndPublishDiagnostics(
+    try parseCodeAndPublishDiagnosticsForFile(
         self,
         allocator,
         params.textDocument.languageId,
@@ -89,14 +86,15 @@ pub fn @"textDocument/didChange"(
     allocator: std.mem.Allocator,
     params: lsp.types.TextDocument.DidChangeParams,
 ) !void {
+    log.info("changed", .{});
+
     // since we opted for "full" didChange notifications, we just recieve the entire document's text in the notification.
     // thus, only 1 change object is needed.
     const document_text = params.contentChanges[0].text_document_content_change_whole_document.text;
 
-    log.info("changed", .{});
-
     // TEMP: this is a terrible way to check file type. There's like fifty different extensions that JavaScript source files can have.
     // Unfortunately, didChange notifications do not send file language type
+    // I may need to keep track of my own list of files and their types...
     const file_lang_str: ?[]const u8 = blk: {
         const uri = params.textDocument.uri;
         const last_index_of_period = std.mem.findScalarLast(u8, uri, '.');
@@ -119,7 +117,7 @@ pub fn @"textDocument/didChange"(
 
         log.info("file_lang: {}", .{file_lang});
 
-        try parseCodeAndPublishDiagnostics(
+        try parseCodeAndPublishDiagnosticsForFile(
             self,
             allocator,
             file_lang,
