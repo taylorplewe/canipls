@@ -5,14 +5,14 @@ const ts = @import("tree-sitter");
 const Parser = @import("parsers/Parser.zig");
 const html_parser = @import("parsers/html.zig");
 const css_parser = @import("parsers/css.zig");
-const javascript_parser = @import("parsers/javascript.zig");
+const js_parser = @import("parsers/js.zig");
 
 const log = std.log.scoped(.caniuse_ls);
 
 const parsers: std.StaticStringMap(Parser) = .initComptime(.{
     .{ "html", html_parser.HtmlParser() },
     .{ "css", css_parser.CssParser() },
-    .{ "javascript", javascript_parser.JavascriptParser() },
+    .{ "javascript", js_parser.JavascriptParser() },
 });
 
 pub fn init() void {

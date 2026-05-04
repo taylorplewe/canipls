@@ -44,7 +44,7 @@ pub fn getLspDiagnosticFromTsNode(
     start_column: u32,
     start_row: u32,
 ) lsp.types.Diagnostic {
-    const column_to_add = if (start_row == 0) start_column else 0;
+    const column_to_add = if (node.startPoint().row == 0) start_column else 0;
     return .{
         .range = .{
             .start = .{ .character = node.startPoint().column + column_to_add, .line = node.startPoint().row + start_row },

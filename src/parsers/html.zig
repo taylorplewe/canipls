@@ -4,6 +4,7 @@ const ts = @import("tree-sitter");
 
 const Parser = @import("Parser.zig");
 const css = @import("css.zig");
+const js = @import("js.zig");
 
 const log = std.log.scoped(.caniuse_ls);
 
@@ -40,6 +41,7 @@ fn parse(
     ;
 
     const STYLE_BLOCKS = "(style_element (raw_text) @css)";
+    const SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
 
     const parser = ts.Parser.create();
     defer parser.destroy();
@@ -58,6 +60,8 @@ fn parse(
         defer query_tags_and_attrs.destroy();
         const query_style_blocks = ts.Query.create(lang_html, STYLE_BLOCKS, &error_offset) catch return &.{};
         defer query_style_blocks.destroy();
+        const query_script_blocks = ts.Query.create(lang_html, SCRIPT_BLOCKS, &error_offset) catch return &.{};
+        defer query_script_blocks.destroy();
 
         const cursor = ts.QueryCursor.create();
         defer cursor.destroy();
@@ -111,6 +115,21 @@ fn parse(
                 css_node.startPoint().row,
             );
             diagnostics.appendSlice(allocator, css_diagnostics) catch return &.{};
+        }
+
+        // script (JS) blocks
+        cursor.exec(query_script_blocks, node);
+        while (cursor.nextMatch()) |match| {
+            const js_node = match.captures[0].node;
+            const js_code = code[js_node.startByte()..js_node.endByte()];
+
+            const js_diagnostics = js.JavascriptParser().parse(
+                allocator,
+                js_code,
+                js_node.startPoint().column,
+                js_node.startPoint().row,
+            );
+            diagnostics.appendSlice(allocator, js_diagnostics) catch return &.{};
         }
     }
 
