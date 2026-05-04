@@ -68,9 +68,10 @@ fn parse(
         };
         defer query_pseudo_class_selectors.destroy();
 
-        // properties
         const cursor = ts.QueryCursor.create();
         defer cursor.destroy();
+
+        // properties
         cursor.exec(query_properties, root_node);
         while (cursor.nextMatch()) |match| {
             const prop_node = match.captures[0].node;

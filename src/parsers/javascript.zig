@@ -4,6 +4,8 @@ const ts = @import("tree-sitter");
 
 const Parser = @import("Parser.zig");
 
+const log = std.log.scoped(.caniuse_ls);
+
 extern fn tree_sitter_javascript() callconv(.c) *ts.Language;
 var lang_javascript: *ts.Language = undefined;
 
@@ -24,10 +26,52 @@ fn deinit() void {
 fn parse(
     allocator: std.mem.Allocator,
     code: []const u8,
-    _: u32,
-    _: u32,
+    start_column: u32,
+    start_row: u32,
 ) []const lsp.types.Diagnostic {
-    _ = allocator; // autofix
-    _ = code; // autofix
-    return &.{};
+    const QUERY = "(identifier) @name";
+
+    const parser = ts.Parser.create();
+    defer parser.destroy();
+    parser.setLanguage(lang_javascript) catch return &.{};
+
+    var diagnostics: std.ArrayList(lsp.types.Diagnostic) = .empty;
+
+    const parse_res = parser.parseString(code, null);
+    if (parse_res) |ast| {
+        defer ast.destroy();
+
+        const root_node = ast.rootNode();
+
+        var error_offset: u32 = 0;
+        const query_identifiers = ts.Query.create(lang_javascript, QUERY, &error_offset) catch |err| {
+            log.err("could not create tree-sitter query: {}", .{err});
+            return &.{};
+        };
+        defer query_identifiers.destroy();
+
+        const cursor = ts.QueryCursor.create();
+        defer cursor.destroy();
+
+        // identifiers
+        cursor.exec(query_identifiers, root_node);
+        while (cursor.nextMatch()) |match| {
+            const identifier_node = match.captures[0].node;
+            const identifier_name = code[identifier_node.startByte()..identifier_node.endByte()];
+
+            // TEMP
+            if (std.mem.eql(u8, identifier_name, "trustedTypes")) {
+                diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                    allocator,
+                    &identifier_node,
+                    .JsApi,
+                    88.95,
+                    start_column,
+                    start_row,
+                )) catch return &.{};
+            }
+        }
+    }
+
+    return diagnostics.items;
 }

@@ -21,6 +21,7 @@ const ElementKind = enum {
     CssAtRule,
     CssPseudoElementSelector,
     CssPseudoClassSelector,
+    JsApi,
 
     fn getWord(self: ElementKind) []const u8 {
         return switch (self) {
@@ -30,6 +31,7 @@ const ElementKind = enum {
             .CssAtRule => "at-rule",
             .CssPseudoElementSelector => "pseudo element selector",
             .CssPseudoClassSelector => "pseudo class selector",
+            .JsApi => "API",
         };
     }
 };

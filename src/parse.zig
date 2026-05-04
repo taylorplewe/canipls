@@ -32,12 +32,20 @@ pub fn parseCodeAndGetDiagnostics(
     language_kind: lsp.types.TextDocument.LanguageKind,
     code: []const u8,
 ) []const lsp.types.Diagnostic {
-    switch (language_kind) {
-        .html => return parsers.get("html").?.parse(allocator, code, 0, 0),
-        .css => return parsers.get("css").?.parse(allocator, code, 0, 0),
-        .javascript => return parsers.get("javascript").?.parse(allocator, code, 0, 0),
-        else => {},
+    const maybe_parser = prs: switch (language_kind) {
+        .html => break :prs parsers.get("html"),
+        .css => break :prs parsers.get("css"),
+        .javascript => break :prs parsers.get("javascript"),
+        .custom_value => |kind| {
+            break :prs if (std.mem.eql(u8, kind, "vue"))
+                parsers.get("html")
+            else
+                null;
+        },
+        else => break :prs null,
+    };
+    if (maybe_parser) |parser| {
+        return parser.parse(allocator, code, 0, 0);
     }
-
     return &.{};
 }
