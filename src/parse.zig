@@ -7,6 +7,7 @@ const html_parser = @import("parsers/html.zig");
 const css_parser = @import("parsers/css.zig");
 const js_parser = @import("parsers/js.zig");
 const svelte_parser = @import("parsers/svelte.zig");
+const astro_parser = @import("parsers/astro.zig");
 
 const log = std.log.scoped(.caniuse_ls);
 
@@ -15,6 +16,7 @@ const parsers: std.StaticStringMap(Parser) = .initComptime(.{
     .{ "css", css_parser.CssParser() },
     .{ "javascript", js_parser.JavascriptParser() },
     .{ "svelte", svelte_parser.SvelteParser() },
+    .{ "astro", astro_parser.AstroParser() },
 });
 
 pub fn init() void {
@@ -44,6 +46,8 @@ pub fn parseCodeAndGetDiagnostics(
                 parsers.get("html")
             else if (std.mem.eql(u8, kind, "svelte"))
                 parsers.get("svelte")
+            else if (std.mem.eql(u8, kind, "astro"))
+                parsers.get("astro")
             else
                 null;
         },

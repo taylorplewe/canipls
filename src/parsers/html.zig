@@ -31,6 +31,22 @@ fn parse(
     start_column: u32,
     start_row: u32,
 ) []const lsp.types.Diagnostic {
+    return parseHtmlAndReturnDiagnostics(
+        allocator,
+        code,
+        start_column,
+        start_row,
+        lang_html,
+    );
+}
+
+pub fn parseHtmlAndReturnDiagnostics(
+    allocator: std.mem.Allocator,
+    code: []const u8,
+    start_column: u32,
+    start_row: u32,
+    lang: *ts.Language,
+) []const lsp.types.Diagnostic {
     const START_TAG_NAME_AND_ATTRS_QUERY =
         \\(start_tag
         \\  (tag_name) @tagname
@@ -45,7 +61,7 @@ fn parse(
 
     const parser = ts.Parser.create();
     defer parser.destroy();
-    parser.setLanguage(lang_html) catch return &.{};
+    parser.setLanguage(lang) catch return &.{};
 
     var diagnostics: std.ArrayList(lsp.types.Diagnostic) = .empty;
 
@@ -56,11 +72,11 @@ fn parse(
         const node = ast.rootNode();
 
         var error_offset: u32 = 0;
-        const query_tags_and_attrs = ts.Query.create(lang_html, START_TAG_NAME_AND_ATTRS_QUERY, &error_offset) catch return &.{};
+        const query_tags_and_attrs = ts.Query.create(lang, START_TAG_NAME_AND_ATTRS_QUERY, &error_offset) catch return &.{};
         defer query_tags_and_attrs.destroy();
-        const query_style_blocks = ts.Query.create(lang_html, STYLE_BLOCKS, &error_offset) catch return &.{};
+        const query_style_blocks = ts.Query.create(lang, STYLE_BLOCKS, &error_offset) catch return &.{};
         defer query_style_blocks.destroy();
-        const query_script_blocks = ts.Query.create(lang_html, SCRIPT_BLOCKS, &error_offset) catch return &.{};
+        const query_script_blocks = ts.Query.create(lang, SCRIPT_BLOCKS, &error_offset) catch return &.{};
         defer query_script_blocks.destroy();
 
         const cursor = ts.QueryCursor.create();

@@ -28,6 +28,10 @@
             .url = "git+https://github.com/tree-sitter-grammars/tree-sitter-svelte#ae5199db47757f785e43a14b332118a5474de1a2",
             .hash = "N-V-__8AABYgBwCGTDMVY_nARLxmx4ssF9ii3XBJX-PJjp56",
         },
+        .tree_sitter_astro = .{
+            .url = "git+https://github.com/virchau13/tree-sitter-astro#213f6e6973d9b456c6e50e86f19f66877e7ef0ee",
+            .hash = "N-V-__8AAJNXBABREQeOPSNuanG8SHorPxYfcVDUmc1wdjR4",
+        },
     },
     .paths = .{
         "build.zig",

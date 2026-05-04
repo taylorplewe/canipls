@@ -114,6 +114,8 @@ pub fn @"textDocument/didChange"(
                 .{ .custom_value = "vue" }
             else if (std.mem.eql(u8, lang_str, "svelte"))
                 .{ .custom_value = "svelte" }
+            else if (std.mem.eql(u8, lang_str, "astro"))
+                .{ .custom_value = "astro" }
             else
                 return;
 

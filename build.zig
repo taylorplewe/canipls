@@ -11,6 +11,7 @@ pub fn build(b: *std.Build) void {
     const tree_sitter_css = b.dependency("tree_sitter_css", .{ .target = target, .optimize = optimize });
     const tree_sitter_javascript = b.dependency("tree_sitter_javascript", .{ .target = target, .optimize = optimize });
     const tree_sitter_svelte = b.dependency("tree_sitter_svelte", .{ .target = target, .optimize = optimize });
+    const tree_sitter_astro = b.dependency("tree_sitter_astro", .{ .target = target, .optimize = optimize });
 
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
@@ -29,6 +30,8 @@ pub fn build(b: *std.Build) void {
     exe_mod.addCSourceFile(.{ .file = tree_sitter_javascript.path("src/parser.c") });
     exe_mod.addCSourceFile(.{ .file = tree_sitter_svelte.path("src/scanner.c") });
     exe_mod.addCSourceFile(.{ .file = tree_sitter_svelte.path("src/parser.c") });
+    exe_mod.addCSourceFile(.{ .file = tree_sitter_astro.path("src/scanner.c") });
+    exe_mod.addCSourceFile(.{ .file = tree_sitter_astro.path("src/parser.c") });
 
     const exe = b.addExecutable(.{
         .name = "caniuse-ls",
