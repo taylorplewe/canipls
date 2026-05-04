@@ -41,6 +41,8 @@ pub fn parseCodeAndGetDiagnostics(
         .css => break :prs parsers.get("css"),
         .javascript => break :prs parsers.get("javascript"),
         .typescript => break :prs parsers.get("javascript"),
+        .javascriptreact => break :prs parsers.get("javascript"),
+        .typescriptreact => break :prs parsers.get("javascript"),
         .custom_value => |kind| {
             break :prs if (std.mem.eql(u8, kind, "vue"))
                 parsers.get("html")

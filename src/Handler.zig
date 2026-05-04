@@ -110,6 +110,12 @@ pub fn @"textDocument/didChange"(
                 .css
             else if (std.mem.eql(u8, lang_str, "js"))
                 .javascript
+            else if (std.mem.eql(u8, lang_str, "ts"))
+                .typescript
+            else if (std.mem.eql(u8, lang_str, "jsx"))
+                .javascriptreact
+            else if (std.mem.eql(u8, lang_str, "tsx"))
+                .typescriptreact
             else if (std.mem.eql(u8, lang_str, "vue"))
                 .{ .custom_value = "vue" }
             else if (std.mem.eql(u8, lang_str, "svelte"))
