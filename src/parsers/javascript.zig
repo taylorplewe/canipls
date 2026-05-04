@@ -69,6 +69,15 @@ fn parse(
                     start_column,
                     start_row,
                 )) catch return &.{};
+            } else if (std.mem.eql(u8, identifier_name, "Temporal")) {
+                diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                    allocator,
+                    &identifier_node,
+                    .JsApi,
+                    69.28,
+                    start_column,
+                    start_row,
+                )) catch return &.{};
             }
         }
     }
