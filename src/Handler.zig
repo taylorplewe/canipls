@@ -88,6 +88,7 @@ pub fn @"textDocument/didChange"(
 ) !void {
     // since we opted for "full" didChange notifications, we just recieve the entire document's text in the notification.
     // thus, only 1 change object is needed.
+    // TODO: once I'm already keeping files' entire text in memory myself (for hover docs), I may change this to only require incremental change notifications
     const document_text = params.contentChanges[0].text_document_content_change_whole_document.text;
 
     // TEMP: this is a terrible way to check file type. There's like fifty different extensions that JavaScript source files can have.
@@ -109,6 +110,10 @@ pub fn @"textDocument/didChange"(
                 .css
             else if (std.mem.eql(u8, lang_str, "js"))
                 .javascript
+            else if (std.mem.eql(u8, lang_str, "vue"))
+                .{ .custom_value = "vue" }
+            else if (std.mem.eql(u8, lang_str, "svelte"))
+                .{ .custom_value = "svelte" }
             else
                 return;
 

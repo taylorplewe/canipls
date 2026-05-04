@@ -6,6 +6,7 @@ const Parser = @import("parsers/Parser.zig");
 const html_parser = @import("parsers/html.zig");
 const css_parser = @import("parsers/css.zig");
 const js_parser = @import("parsers/js.zig");
+const svelte_parser = @import("parsers/svelte.zig");
 
 const log = std.log.scoped(.caniuse_ls);
 
@@ -13,6 +14,7 @@ const parsers: std.StaticStringMap(Parser) = .initComptime(.{
     .{ "html", html_parser.HtmlParser() },
     .{ "css", css_parser.CssParser() },
     .{ "javascript", js_parser.JavascriptParser() },
+    .{ "svelte", svelte_parser.SvelteParser() },
 });
 
 pub fn init() void {
@@ -40,6 +42,8 @@ pub fn parseCodeAndGetDiagnostics(
         .custom_value => |kind| {
             break :prs if (std.mem.eql(u8, kind, "vue"))
                 parsers.get("html")
+            else if (std.mem.eql(u8, kind, "svelte"))
+                parsers.get("svelte")
             else
                 null;
         },
