@@ -122,6 +122,7 @@ pub fn initialize(
                 .openClose = true,
             },
         },
+        .hoverProvider = .{ .bool = true },
     };
 
     lsp.basic_server.validateServerCapabilities(Handler, capabilities);
@@ -133,7 +134,7 @@ pub fn initialize(
 /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didOpen
 pub fn @"textDocument/didOpen"(
     self: *Handler,
-    allocator: std.mem.Allocator,
+    temp_allocator: std.mem.Allocator,
     params: lsp.types.TextDocument.DidOpenParams,
 ) !void {
     log.info("textDocument/didOpen", .{});
@@ -146,7 +147,7 @@ pub fn @"textDocument/didOpen"(
 
     try parseCodeAndPublishDiagnosticsForFile(
         self,
-        allocator,
+        temp_allocator,
         params.textDocument.uri,
         doc,
     );
@@ -157,25 +158,22 @@ pub fn @"textDocument/didOpen"(
 /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didChange
 pub fn @"textDocument/didChange"(
     self: *Handler,
-    allocator: std.mem.Allocator,
+    temp_allocator: std.mem.Allocator,
     params: lsp.types.TextDocument.DidChangeParams,
 ) !void {
     log.info("textDocument/didChange", .{});
 
-    const document_get = self.files.getPtr(params.textDocument.uri);
-
     const new_src = try self.allocator.dupe(u8, params.contentChanges[0].text_document_content_change_whole_document.text);
 
+    const document_get = self.files.getPtr(params.textDocument.uri);
     if (document_get) |document| {
         document.swapSrc(&self.allocator, new_src);
 
         try self.parseCodeAndPublishDiagnosticsForFile(
-            allocator,
+            temp_allocator,
             params.textDocument.uri,
             document,
         );
-
-        log.info("new file's src: {s}", .{document.src});
     }
 }
 
@@ -190,6 +188,27 @@ pub fn @"textDocument/didClose"(
     self.removeDocument(params.textDocument.uri);
 
     self.printDocuments();
+}
+
+pub fn @"textDocument/hover"(
+    self: *Handler,
+    _: std.mem.Allocator,
+    params: lsp.types.Hover.Params,
+) !?lsp.types.Hover {
+    const document_get = self.files.getPtr(params.textDocument.uri);
+    if (document_get) |document| {
+        const txt = parse.getHoverDocAtPoint(params.position, document);
+        log.info("here's what I found: {s}", .{txt});
+    }
+
+    return lsp.types.Hover{
+        .contents = .{
+            .markup_content = .{
+                .kind = .markdown,
+                .value = "# this is a test\n\nthis is a description",
+            },
+        },
+    };
 }
 
 pub fn onResponse(_: *Handler, _: std.mem.Allocator, _: lsp.JsonRPCMessage.Response) void {}

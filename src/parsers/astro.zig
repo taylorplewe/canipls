@@ -16,6 +16,7 @@ pub fn AstroParser() Parser {
         .init = init,
         .deinit = deinit,
         .parse = parse,
+        .getHoverDocAtPosition = getHoverDocAtPosition,
     };
 }
 
@@ -77,4 +78,16 @@ fn parse(
     }
 
     return diagnostics.items;
+}
+
+fn getHoverDocAtPosition(
+    code: []const u8,
+    column: u32,
+    row: u32,
+) []const u8 {
+    _ = code; // autofix
+    _ = column; // autofix
+    _ = row; // autofix
+
+    return "";
 }

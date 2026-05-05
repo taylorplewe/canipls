@@ -2,6 +2,7 @@ const std = @import("std");
 const lsp = @import("lsp");
 const ts = @import("tree-sitter");
 
+const Document = @import("Document.zig");
 const Parser = @import("parsers/Parser.zig");
 const html_parser = @import("parsers/html.zig");
 const css_parser = @import("parsers/css.zig");
@@ -31,20 +32,16 @@ pub fn deinit() void {
     }
 }
 
-pub fn parseCodeAndGetDiagnostics(
-    allocator: std.mem.Allocator,
-    language_kind: lsp.types.TextDocument.LanguageKind,
-    code: []const u8,
-) []const lsp.types.Diagnostic {
-    const maybe_parser = prs: switch (language_kind) {
-        .html => break :prs parsers.get("html"),
-        .css => break :prs parsers.get("css"),
-        .javascript => break :prs parsers.get("javascript"),
-        .typescript => break :prs parsers.get("javascript"),
-        .javascriptreact => break :prs parsers.get("javascript"),
-        .typescriptreact => break :prs parsers.get("javascript"),
+fn getParserFromLspLanguageKind(language_kind: lsp.types.TextDocument.LanguageKind) ?Parser {
+    switch (language_kind) {
+        .html => return parsers.get("html"),
+        .css => return parsers.get("css"),
+        .javascript => return parsers.get("javascript"),
+        .typescript => return parsers.get("javascript"),
+        .javascriptreact => return parsers.get("javascript"),
+        .typescriptreact => return parsers.get("javascript"),
         .custom_value => |kind| {
-            break :prs if (std.mem.eql(u8, kind, "vue"))
+            return if (std.mem.eql(u8, kind, "vue"))
                 parsers.get("html")
             else if (std.mem.eql(u8, kind, "svelte"))
                 parsers.get("svelte")
@@ -53,10 +50,23 @@ pub fn parseCodeAndGetDiagnostics(
             else
                 null;
         },
-        else => break :prs null,
-    };
-    if (maybe_parser) |parser| {
-        return parser.parse(allocator, code, 0, 0);
+        else => return null,
     }
-    return &.{};
+}
+
+pub fn parseCodeAndGetDiagnostics(
+    allocator: std.mem.Allocator,
+    language_kind: lsp.types.TextDocument.LanguageKind,
+    code: []const u8,
+) []const lsp.types.Diagnostic {
+    const parser = getParserFromLspLanguageKind(language_kind) orelse return &.{};
+    return parser.parse(allocator, code, 0, 0);
+}
+
+pub fn getHoverDocAtPoint(
+    position: lsp.types.Position,
+    document: *const Document,
+) []const u8 {
+    const parser = getParserFromLspLanguageKind(document.language) orelse return "";
+    return parser.getHoverDocAtPosition(document.src, position.character, position.line);
 }

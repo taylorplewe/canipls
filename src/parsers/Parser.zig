@@ -13,6 +13,11 @@ parse: *const fn (
     start_column: u32,
     start_row: u32,
 ) []const lsp.types.Diagnostic,
+getHoverDocAtPosition: *const fn (
+    code: []const u8,
+    column: u32,
+    row: u32,
+) []const u8,
 
 const ElementKind = enum {
     HtmlElement,
