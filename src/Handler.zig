@@ -1,22 +1,36 @@
 const std = @import("std");
 const lsp = @import("lsp");
 
+const Document = @import("Document.zig");
 const parse = @import("parse.zig");
 
 const log = std.log.scoped(.caniuse_ls);
 
 const Handler = @This();
 
+allocator: std.mem.Allocator,
 io: *const std.Io,
 transport: *lsp.Transport,
+files: std.StringHashMap(Document),
 
 // helper functions
-pub fn init(io: *const std.Io, transport: *lsp.Transport) Handler {
+pub fn init(
+    allocator: std.mem.Allocator,
+    io: *const std.Io,
+    transport: *lsp.Transport,
+) Handler {
     return .{
+        .allocator = allocator,
         .io = io,
         .transport = transport,
+        .files = .init(allocator),
     };
 }
+pub fn deinit(self: *Handler) void {
+    self.files.deinit();
+}
+
+/// TODO: just pass a *Document to this file
 fn parseCodeAndPublishDiagnosticsForFile(
     self: *Handler,
     allocator: std.mem.Allocator,
@@ -69,8 +83,26 @@ pub fn @"textDocument/didOpen"(
 ) !void {
     log.info("textDocument/didOpen", .{});
 
-    const document_text = params.textDocument.text;
+    const document_text = try self.allocator.dupe(u8, params.textDocument.text);
+    const document_uri = try self.allocator.dupe(u8, params.textDocument.uri);
 
+    const document: Document = .{
+        .src = document_text,
+        .language = lang: {
+            switch (params.textDocument.languageId) {
+                .custom_value => |value| {
+                    break :lang .{ .custom_value = try self.allocator.dupe(u8, value) };
+                },
+                else => break :lang params.textDocument.languageId,
+            }
+        },
+    };
+
+    // remove the file from the hash map if it exists
+    _ = self.files.remove(document_uri);
+    try self.files.put(document_uri, document);
+
+    // TODO just pass a pointer to a Document to this file
     try parseCodeAndPublishDiagnosticsForFile(
         self,
         allocator,

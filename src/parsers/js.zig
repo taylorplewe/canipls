@@ -94,7 +94,7 @@ fn parse(
             }
         }
 
-        // elements and attributes
+        // JSX elements and attributes
         cursor.exec(query_jsx_tags_and_attrs, root_node);
         while (cursor.nextMatch()) |match| {
             const tag_node = match.captures[0].node;

@@ -10,7 +10,12 @@ pub fn main(init: std.process.Init) !void {
     var stdio_transport: lsp.Transport.Stdio = .init(&read_buf, .stdin(), .stdout());
     const transport: *lsp.Transport = &stdio_transport.transport;
 
-    var handler: Handler = .init(&init.io, transport);
+    var handler: Handler = .init(
+        init.gpa,
+        &init.io,
+        transport,
+    );
+    defer handler.deinit();
 
     parsers.init();
     defer parsers.deinit();
