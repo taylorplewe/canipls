@@ -27,18 +27,73 @@ pub fn init(
     };
 }
 pub fn deinit(self: *Handler) void {
+    var uri_it = self.files.keyIterator();
+    while (uri_it.next()) |uri| {
+        self.removeDocument(uri.*);
+    }
     self.files.deinit();
 }
 
-/// TODO: just pass a *Document to this file
+fn addDocument(
+    self: *Handler,
+    document_uri: []const u8,
+    document_lang_kind: lsp.types.TextDocument.LanguageKind,
+    document_text: []const u8,
+) !*const Document {
+    const owned_document_text = try self.allocator.dupe(u8, document_text);
+    const owned_document_uri = try self.allocator.dupe(u8, document_uri);
+
+    const document: Document = .{
+        .src = owned_document_text,
+        .language = lang: {
+            switch (document_lang_kind) {
+                .custom_value => |value| {
+                    break :lang .{ .custom_value = try self.allocator.dupe(u8, value) };
+                },
+                else => break :lang document_lang_kind,
+            }
+        },
+    };
+
+    // remove the file from the hash map if it exists
+    _ = self.files.remove(owned_document_uri);
+    try self.files.put(owned_document_uri, document);
+
+    return &document;
+}
+fn removeDocument(self: *Handler, document_uri: []const u8) void {
+    const document_get = self.files.get(document_uri);
+    if (document_get) |document| {
+        switch (document.language) {
+            .custom_value => |value| {
+                self.allocator.free(value);
+            },
+            else => {},
+        }
+        self.allocator.free(document.src);
+    }
+    _ = self.files.remove(document_uri);
+}
+// DEBUG
+fn printDocuments(self: *Handler) void {
+    log.info("self.files:", .{});
+    var it_keys = self.files.keyIterator();
+    while (it_keys.next()) |uri| {
+        log.info(" {s}", .{uri.*});
+    }
+}
+
 fn parseCodeAndPublishDiagnosticsForFile(
     self: *Handler,
-    allocator: std.mem.Allocator,
-    file_lang: lsp.types.TextDocument.LanguageKind,
+    temp_allocator: std.mem.Allocator,
     file_uri: []const u8,
-    code: []const u8,
+    document: *const Document,
 ) !void {
-    const diagnostics = parse.parseCodeAndGetDiagnostics(allocator, file_lang, code);
+    const diagnostics = parse.parseCodeAndGetDiagnostics(
+        temp_allocator,
+        document.language,
+        document.src,
+    );
 
     const publish_diagnostics_params: lsp.types.publish_diagnostics.Params = .{
         .uri = file_uri,
@@ -46,7 +101,7 @@ fn parseCodeAndPublishDiagnosticsForFile(
     };
     try self.transport.writeNotification(
         self.io.*,
-        allocator,
+        temp_allocator,
         "textDocument/publishDiagnostics",
         lsp.types.publish_diagnostics.Params,
         publish_diagnostics_params,
@@ -83,33 +138,20 @@ pub fn @"textDocument/didOpen"(
 ) !void {
     log.info("textDocument/didOpen", .{});
 
-    const document_text = try self.allocator.dupe(u8, params.textDocument.text);
-    const document_uri = try self.allocator.dupe(u8, params.textDocument.uri);
+    const doc = try self.addDocument(
+        params.textDocument.uri,
+        params.textDocument.languageId,
+        params.textDocument.text,
+    );
 
-    const document: Document = .{
-        .src = document_text,
-        .language = lang: {
-            switch (params.textDocument.languageId) {
-                .custom_value => |value| {
-                    break :lang .{ .custom_value = try self.allocator.dupe(u8, value) };
-                },
-                else => break :lang params.textDocument.languageId,
-            }
-        },
-    };
-
-    // remove the file from the hash map if it exists
-    _ = self.files.remove(document_uri);
-    try self.files.put(document_uri, document);
-
-    // TODO just pass a pointer to a Document to this file
     try parseCodeAndPublishDiagnosticsForFile(
         self,
         allocator,
-        params.textDocument.languageId,
         params.textDocument.uri,
-        document_text,
+        doc,
     );
+
+    self.printDocuments();
 }
 
 /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didChange
@@ -118,10 +160,13 @@ pub fn @"textDocument/didChange"(
     allocator: std.mem.Allocator,
     params: lsp.types.TextDocument.DidChangeParams,
 ) !void {
+    _ = self; // autofix
+    _ = allocator; // autofix
     // since we opted for "full" didChange notifications, we just recieve the entire document's text in the notification.
     // thus, only 1 change object is needed.
     // TODO: once I'm already keeping files' entire text in memory myself (for hover docs), I may change this to only require incremental change notifications
     const document_text = params.contentChanges[0].text_document_content_change_whole_document.text;
+    _ = document_text; // autofix
 
     // TEMP: this is a terrible way to check file type. There's like fifty different extensions that JavaScript source files can have.
     // Unfortunately, didChange notifications do not send file language type
@@ -156,19 +201,29 @@ pub fn @"textDocument/didChange"(
                 .{ .custom_value = "astro" }
             else
                 return;
+        _ = file_lang; // autofix
 
-        try parseCodeAndPublishDiagnosticsForFile(
-            self,
-            allocator,
-            file_lang,
-            params.textDocument.uri,
-            document_text,
-        );
+        // try parseCodeAndPublishDiagnosticsForFile(
+        //     self,
+        //     allocator,
+        //     file_lang,
+        //     params.textDocument.uri,
+        //     document_text,
+        // );
     }
 }
 
 /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didClose
-/// we must declare this function since `didOpen` and `didClose` are opted into together
-pub fn @"textDocument/didClose"(_: *Handler, _: std.mem.Allocator, _: lsp.types.TextDocument.DidCloseParams) !void {}
+pub fn @"textDocument/didClose"(
+    self: *Handler,
+    _: std.mem.Allocator,
+    params: lsp.types.TextDocument.DidCloseParams,
+) !void {
+    log.info("textDocument/didClose", .{});
+
+    self.removeDocument(params.textDocument.uri);
+
+    self.printDocuments();
+}
 
 pub fn onResponse(_: *Handler, _: std.mem.Allocator, _: lsp.JsonRPCMessage.Response) void {}
