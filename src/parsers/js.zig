@@ -29,7 +29,15 @@ fn parse(
     start_column: u32,
     start_row: u32,
 ) []const lsp.types.Diagnostic {
-    const QUERY = "(identifier) @name";
+    const QUERY_IDENTIFIERS = "(identifier) @name";
+    const QUERY_TAG_NAME_AND_ATTRS =
+        \\(jsx_opening_element
+        \\  (identifier) @tagname
+        \\  (jsx_attribute
+        \\    (property_identifier) @attrname
+        \\  )*
+        \\)
+    ;
 
     const parser = ts.Parser.create();
     defer parser.destroy();
@@ -44,11 +52,16 @@ fn parse(
         const root_node = ast.rootNode();
 
         var error_offset: u32 = 0;
-        const query_identifiers = ts.Query.create(lang_javascript, QUERY, &error_offset) catch |err| {
+        const query_identifiers = ts.Query.create(lang_javascript, QUERY_IDENTIFIERS, &error_offset) catch |err| {
             log.err("could not create tree-sitter query: {}", .{err});
             return &.{};
         };
         defer query_identifiers.destroy();
+        const query_jsx_tags_and_attrs = ts.Query.create(lang_javascript, QUERY_TAG_NAME_AND_ATTRS, &error_offset) catch |err| {
+            log.err("could not create tree-sitter query: {}", .{err});
+            return &.{};
+        };
+        defer query_jsx_tags_and_attrs.destroy();
 
         const cursor = ts.QueryCursor.create();
         defer cursor.destroy();
@@ -78,6 +91,42 @@ fn parse(
                     start_column,
                     start_row,
                 )) catch return &.{};
+            }
+        }
+
+        // elements and attributes
+        cursor.exec(query_jsx_tags_and_attrs, root_node);
+        while (cursor.nextMatch()) |match| {
+            const tag_node = match.captures[0].node;
+            const tag_name = code[tag_node.startByte()..tag_node.endByte()];
+
+            // send diagnostic on <geolocation> element
+            if (std.mem.eql(u8, tag_name, "geolocation")) {
+                diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                    allocator,
+                    &tag_node,
+                    .HtmlElement,
+                    75.86,
+                    start_column,
+                    start_row,
+                )) catch return &.{};
+            }
+
+            for (match.captures[1..]) |capture| {
+                const attr_node = capture.node;
+                const attr_name = code[attr_node.startByte()..attr_node.endByte()];
+
+                // send diagnostic on "virtualkeyboardpolicy" attribute
+                if (std.mem.eql(u8, attr_name, "virtualkeyboardpolicy")) {
+                    diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                        allocator,
+                        &attr_node,
+                        .HtmlAttribute,
+                        75.86,
+                        start_column,
+                        start_row,
+                    )) catch return &.{};
+                }
             }
         }
     }
