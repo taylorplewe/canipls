@@ -160,56 +160,22 @@ pub fn @"textDocument/didChange"(
     allocator: std.mem.Allocator,
     params: lsp.types.TextDocument.DidChangeParams,
 ) !void {
-    _ = self; // autofix
-    _ = allocator; // autofix
-    // since we opted for "full" didChange notifications, we just recieve the entire document's text in the notification.
-    // thus, only 1 change object is needed.
-    // TODO: once I'm already keeping files' entire text in memory myself (for hover docs), I may change this to only require incremental change notifications
-    const document_text = params.contentChanges[0].text_document_content_change_whole_document.text;
-    _ = document_text; // autofix
+    log.info("textDocument/didChange", .{});
 
-    // TEMP: this is a terrible way to check file type. There's like fifty different extensions that JavaScript source files can have.
-    // Unfortunately, didChange notifications do not send file language type
-    // I may need to keep track of my own list of files and their types...
-    const file_lang_str: ?[]const u8 = blk: {
-        const uri = params.textDocument.uri;
-        const last_index_of_period = std.mem.findScalarLast(u8, uri, '.');
-        if (last_index_of_period) |index| {
-            break :blk uri[index + 1 ..];
-        }
-        break :blk null;
-    };
-    if (file_lang_str) |lang_str| {
-        const file_lang: lsp.types.TextDocument.LanguageKind =
-            if (std.mem.eql(u8, lang_str, "html"))
-                .html
-            else if (std.mem.eql(u8, lang_str, "css"))
-                .css
-            else if (std.mem.eql(u8, lang_str, "js"))
-                .javascript
-            else if (std.mem.eql(u8, lang_str, "ts"))
-                .typescript
-            else if (std.mem.eql(u8, lang_str, "jsx"))
-                .javascriptreact
-            else if (std.mem.eql(u8, lang_str, "tsx"))
-                .typescriptreact
-            else if (std.mem.eql(u8, lang_str, "vue"))
-                .{ .custom_value = "vue" }
-            else if (std.mem.eql(u8, lang_str, "svelte"))
-                .{ .custom_value = "svelte" }
-            else if (std.mem.eql(u8, lang_str, "astro"))
-                .{ .custom_value = "astro" }
-            else
-                return;
-        _ = file_lang; // autofix
+    const document_get = self.files.getPtr(params.textDocument.uri);
 
-        // try parseCodeAndPublishDiagnosticsForFile(
-        //     self,
-        //     allocator,
-        //     file_lang,
-        //     params.textDocument.uri,
-        //     document_text,
-        // );
+    const new_src = try self.allocator.dupe(u8, params.contentChanges[0].text_document_content_change_whole_document.text);
+
+    if (document_get) |document| {
+        document.swapSrc(&self.allocator, new_src);
+
+        try self.parseCodeAndPublishDiagnosticsForFile(
+            allocator,
+            params.textDocument.uri,
+            document,
+        );
+
+        log.info("new file's src: {s}", .{document.src});
     }
 }
 
