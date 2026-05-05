@@ -2,6 +2,8 @@ const std = @import("std");
 const lsp = @import("lsp");
 const ts = @import("tree-sitter");
 
+const types = @import("../types.zig");
+const HoverInfo = types.HoverInfo;
 const Parser = @import("Parser.zig");
 const css = @import("css.zig");
 const js = @import("js.zig");
@@ -16,7 +18,7 @@ pub fn HtmlParser() Parser {
         .init = init,
         .deinit = deinit,
         .parse = parse,
-        .getHoverDocAtPosition = getHoverDocAtPosition,
+        .getHoverInfoAtPosition = getHoverInfoAtPosition,
     };
 }
 
@@ -153,11 +155,11 @@ pub fn parseHtmlAndReturnDiagnostics(
     return diagnostics.items;
 }
 
-fn getHoverDocAtPosition(
+fn getHoverInfoAtPosition(
     code: []const u8,
     column: u32,
     row: u32,
-) []const u8 {
+) ?HoverInfo {
     const START_TAG_NAME_AND_ATTRS_QUERY =
         \\(start_tag
         \\  (tag_name) @tagname
@@ -172,7 +174,7 @@ fn getHoverDocAtPosition(
 
     const parser = ts.Parser.create();
     defer parser.destroy();
-    parser.setLanguage(lang_html) catch return &.{};
+    parser.setLanguage(lang_html) catch return null;
 
     const parse_res = parser.parseString(code, null);
     if (parse_res) |ast| {
@@ -181,17 +183,17 @@ fn getHoverDocAtPosition(
         const node = ast.rootNode();
 
         var error_offset: u32 = 0;
-        const query_tags_and_attrs = ts.Query.create(lang_html, START_TAG_NAME_AND_ATTRS_QUERY, &error_offset) catch return &.{};
+        const query_tags_and_attrs = ts.Query.create(lang_html, START_TAG_NAME_AND_ATTRS_QUERY, &error_offset) catch return null;
         defer query_tags_and_attrs.destroy();
-        const query_style_blocks = ts.Query.create(lang_html, STYLE_BLOCKS, &error_offset) catch return &.{};
+        const query_style_blocks = ts.Query.create(lang_html, STYLE_BLOCKS, &error_offset) catch return null;
         defer query_style_blocks.destroy();
-        const query_script_blocks = ts.Query.create(lang_html, SCRIPT_BLOCKS, &error_offset) catch return &.{};
+        const query_script_blocks = ts.Query.create(lang_html, SCRIPT_BLOCKS, &error_offset) catch return null;
         defer query_script_blocks.destroy();
 
         var cursor = ts.QueryCursor.create();
         defer cursor.destroy();
 
-        cursor.setPointRange(.{ .column = column, .row = row }, .{ .column = column, .row = row }) catch return "";
+        cursor.setPointRange(.{ .column = column, .row = row }, .{ .column = column, .row = row }) catch return null;
 
         // elements and attributes
         cursor.exec(query_tags_and_attrs, node);
@@ -199,20 +201,28 @@ fn getHoverDocAtPosition(
             const tag_node = match.captures[0].node;
             const tag_name = code[tag_node.startByte()..tag_node.endByte()];
 
-            log.info("found this tag: {s}", .{tag_name});
-
-            // send diagnostic on <geolocation> element
-            if (std.mem.eql(u8, tag_name, "geolocation")) {}
+            if (std.mem.eql(u8, tag_name, "geolocation")) {
+                return HoverInfo{
+                    .caniuse_id = "html_elements_geolocation",
+                    .identifier = tag_name,
+                    .support_percentage = 75.86,
+                };
+            }
 
             for (match.captures[1..]) |capture| {
                 const attr_node = capture.node;
                 const attr_name = code[attr_node.startByte()..attr_node.endByte()];
 
-                // send diagnostic on "virtualkeyboardpolicy" attribute
-                if (std.mem.eql(u8, attr_name, "virtualkeyboardpolicy")) {}
+                if (std.mem.eql(u8, attr_name, "virtualkeyboardpolicy")) {
+                    return HoverInfo{
+                        .caniuse_id = "api_htmlelement_virtualkeyboardpolicy",
+                        .identifier = attr_name,
+                        .support_percentage = 75.86,
+                    };
+                }
             }
         }
     }
 
-    return "";
+    return null;
 }

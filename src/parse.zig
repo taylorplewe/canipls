@@ -1,3 +1,5 @@
+//! This file acts as a liaison between the *parsing* world (tree sitter) and the *server* world (LSP)
+
 const std = @import("std");
 const lsp = @import("lsp");
 const ts = @import("tree-sitter");
@@ -63,10 +65,36 @@ pub fn parseCodeAndGetDiagnostics(
     return parser.parse(allocator, code, 0, 0);
 }
 
-pub fn getHoverDocAtPoint(
+const CANIUSE_HREF_PREFIX = "https://caniuse.com/mdn-";
+pub fn getHoverDocAtPosition(
+    temp_allocator: std.mem.Allocator,
     position: lsp.types.Position,
     document: *const Document,
-) []const u8 {
-    const parser = getParserFromLspLanguageKind(document.language) orelse return "";
-    return parser.getHoverDocAtPosition(document.src, position.character, position.line);
+) ?lsp.types.Hover {
+    const parser = getParserFromLspLanguageKind(document.language) orelse return null;
+
+    const hover_info = parser.getHoverInfoAtPosition(document.src, position.character, position.line);
+    if (hover_info) |info| {
+        const hover_content = std.fmt.allocPrint(
+            temp_allocator,
+            "# {s}\n*{d:.2}%* global support on caniuse.com\n\n[See \"{s}\" on caniuse.com](" ++ CANIUSE_HREF_PREFIX ++ "{s})",
+            .{
+                info.identifier,
+                info.support_percentage,
+                info.identifier,
+                info.caniuse_id,
+            },
+        ) catch return null;
+
+        return .{
+            .contents = .{
+                .markup_content = .{
+                    .kind = .markdown,
+                    .value = hover_content,
+                },
+            },
+        };
+    }
+
+    return null;
 }

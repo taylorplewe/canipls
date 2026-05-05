@@ -2,6 +2,8 @@ const std = @import("std");
 const lsp = @import("lsp");
 const ts = @import("tree-sitter");
 
+const types = @import("../types.zig");
+const HoverInfo = types.HoverInfo;
 const Parser = @import("Parser.zig");
 
 const log = std.log.scoped(.caniuse_ls);
@@ -14,7 +16,7 @@ pub fn JavascriptParser() Parser {
         .init = init,
         .deinit = deinit,
         .parse = parse,
-        .getHoverDocAtPosition = getHoverDocAtPosition,
+        .getHoverInfoAtPosition = getHoverInfoAtPosition,
     };
 }
 
@@ -135,14 +137,14 @@ fn parse(
     return diagnostics.items;
 }
 
-fn getHoverDocAtPosition(
+fn getHoverInfoAtPosition(
     code: []const u8,
     column: u32,
     row: u32,
-) []const u8 {
+) ?HoverInfo {
     _ = code; // autofix
     _ = column; // autofix
     _ = row; // autofix
 
-    return "";
+    return null;
 }

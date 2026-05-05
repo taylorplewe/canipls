@@ -3,6 +3,8 @@ const std = @import("std");
 const lsp = @import("lsp");
 const ts = @import("tree-sitter");
 
+const types = @import("../types.zig");
+const HoverInfo = types.HoverInfo;
 const log = std.log.scoped(.caniuse_ls);
 
 init: *const fn () void,
@@ -13,11 +15,11 @@ parse: *const fn (
     start_column: u32,
     start_row: u32,
 ) []const lsp.types.Diagnostic,
-getHoverDocAtPosition: *const fn (
+getHoverInfoAtPosition: *const fn (
     code: []const u8,
     column: u32,
     row: u32,
-) []const u8,
+) ?HoverInfo,
 
 const ElementKind = enum {
     HtmlElement,

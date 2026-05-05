@@ -192,23 +192,18 @@ pub fn @"textDocument/didClose"(
 
 pub fn @"textDocument/hover"(
     self: *Handler,
-    _: std.mem.Allocator,
+    temp_allocator: std.mem.Allocator,
     params: lsp.types.Hover.Params,
 ) !?lsp.types.Hover {
     const document_get = self.files.getPtr(params.textDocument.uri);
-    if (document_get) |document| {
-        const txt = parse.getHoverDocAtPoint(params.position, document);
-        log.info("here's what I found: {s}", .{txt});
-    }
+    if (document_get) |document|
+        return parse.getHoverDocAtPosition(
+            temp_allocator,
+            params.position,
+            document,
+        ) orelse null;
 
-    return lsp.types.Hover{
-        .contents = .{
-            .markup_content = .{
-                .kind = .markdown,
-                .value = "# this is a test\n\nthis is a description",
-            },
-        },
-    };
+    return null;
 }
 
 pub fn onResponse(_: *Handler, _: std.mem.Allocator, _: lsp.JsonRPCMessage.Response) void {}
