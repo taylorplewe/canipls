@@ -3,7 +3,7 @@ const lsp = @import("lsp");
 const log = std.log.scoped(.caniuse_ls);
 
 const Handler = @import("Handler.zig");
-const parsers = @import("parse.zig");
+const lsp_to_ts = @import("lsp_to_ts.zig");
 
 pub fn main(init: std.process.Init) !void {
     var read_buf: [2048]u8 = undefined;
@@ -17,8 +17,8 @@ pub fn main(init: std.process.Init) !void {
     );
     defer handler.deinit();
 
-    parsers.init();
-    defer parsers.deinit();
+    lsp_to_ts.init(init.io);
+    defer lsp_to_ts.deinit();
 
     std.log.info("running caniuse-ls server...", .{});
     try lsp.basic_server.run(

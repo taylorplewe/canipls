@@ -22,7 +22,8 @@ pub fn AstroParser() Parser {
     };
 }
 
-fn init() void {
+fn init(io: std.Io) void {
+    _ = io; // autofix
     lang_astro = tree_sitter_astro();
 }
 fn deinit() void {

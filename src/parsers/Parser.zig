@@ -7,7 +7,7 @@ const types = @import("../types.zig");
 const HoverInfo = types.HoverInfo;
 const log = std.log.scoped(.caniuse_ls);
 
-init: *const fn () void,
+init: *const fn (io: std.Io) void,
 deinit: *const fn () void,
 parse: *const fn (
     allocator: std.mem.Allocator,

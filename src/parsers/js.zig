@@ -10,6 +10,7 @@ const log = std.log.scoped(.caniuse_ls);
 
 extern fn tree_sitter_javascript() callconv(.c) *ts.Language;
 var lang_javascript: *ts.Language = undefined;
+const js_identifiers_bin: []const u8 = @embedFile("js_identifiers.bin"); // TEMP
 
 pub fn JavascriptParser() Parser {
     return .{
@@ -20,7 +21,8 @@ pub fn JavascriptParser() Parser {
     };
 }
 
-fn init() void {
+fn init(io: std.Io) void {
+    _ = io; // autofix
     lang_javascript = tree_sitter_javascript();
 }
 fn deinit() void {
@@ -74,6 +76,25 @@ fn parse(
         while (cursor.nextMatch()) |match| {
             const identifier_node = match.captures[0].node;
             const identifier_name = code[identifier_node.startByte()..identifier_node.endByte()];
+
+            // search bin files here!!
+            // TEMP: just open the file here for now lmao
+            const num_features_in_bin = std.mem.readInt(u32, js_identifiers_bin[0..4], .little);
+            // search for feature
+            var identifier_buf: [32]u8 = undefined;
+            @memset(&identifier_buf, 0);
+            _ = std.fmt.bufPrint(&identifier_buf, "{s}", .{identifier_name}) catch return diagnostics.items;
+            log.info("identifier buf: {s}", .{identifier_buf});
+            var next_name_start = (num_features_in_bin * @sizeOf(f32)) + @sizeOf(u32);
+            for (0..num_features_in_bin) |i| {
+                _ = i; // autofix
+                const name = js_identifiers_bin[next_name_start..][0..32];
+                if (std.mem.eql(u8, &identifier_buf, name)) {
+                    log.info("found!", .{});
+                    break;
+                }
+                next_name_start += 32;
+            }
 
             // TEMP
             if (std.mem.eql(u8, identifier_name, "trustedTypes")) {

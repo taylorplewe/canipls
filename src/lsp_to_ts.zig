@@ -22,9 +22,9 @@ const parsers: std.StaticStringMap(Parser) = .initComptime(.{
     .{ "astro", astro_parser.AstroParser() },
 });
 
-pub fn init() void {
+pub fn init(io: std.Io) void {
     for (parsers.values()) |parser| {
-        parser.init();
+        parser.init(io);
     }
 }
 
@@ -62,7 +62,12 @@ pub fn parseCodeAndGetDiagnostics(
     code: []const u8,
 ) []const lsp.types.Diagnostic {
     const parser = getParserFromLspLanguageKind(language_kind) orelse return &.{};
-    return parser.parse(allocator, code, 0, 0);
+    return parser.parse(
+        allocator,
+        code,
+        0,
+        0,
+    );
 }
 
 const CANIUSE_HREF_PREFIX = "https://caniuse.com/mdn-";
@@ -79,7 +84,6 @@ pub fn getHoverDocAtPosition(
             temp_allocator,
             "**{d:.2}%** global support on caniuse.com\n\n[See \"{s}\" on caniuse.com](" ++ CANIUSE_HREF_PREFIX ++ "{s})",
             .{
-                info.identifier,
                 info.support_percentage,
                 info.identifier,
                 info.caniuse_id,

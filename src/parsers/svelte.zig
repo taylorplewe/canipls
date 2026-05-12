@@ -21,7 +21,8 @@ pub fn SvelteParser() Parser {
     };
 }
 
-fn init() void {
+fn init(io: std.Io) void {
+    _ = io; // autofix
     lang_svelte = tree_sitter_svelte();
 }
 fn deinit() void {

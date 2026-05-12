@@ -2,7 +2,7 @@ const std = @import("std");
 const lsp = @import("lsp");
 
 const Document = @import("Document.zig");
-const parse = @import("parse.zig");
+const lsp_to_ts = @import("lsp_to_ts.zig");
 
 const log = std.log.scoped(.caniuse_ls);
 
@@ -89,7 +89,7 @@ fn parseCodeAndPublishDiagnosticsForFile(
     file_uri: []const u8,
     document: *const Document,
 ) !void {
-    const diagnostics = parse.parseCodeAndGetDiagnostics(
+    const diagnostics = lsp_to_ts.parseCodeAndGetDiagnostics(
         temp_allocator,
         document.language,
         document.src,
@@ -197,7 +197,7 @@ pub fn @"textDocument/hover"(
 ) !?lsp.types.Hover {
     const document_get = self.files.getPtr(params.textDocument.uri);
     if (document_get) |document|
-        return parse.getHoverDocAtPosition(
+        return lsp_to_ts.getHoverDocAtPosition(
             temp_allocator,
             params.position,
             document,
