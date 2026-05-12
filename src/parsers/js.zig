@@ -84,13 +84,17 @@ fn parse(
             var identifier_buf: [32]u8 = undefined;
             @memset(&identifier_buf, 0);
             _ = std.fmt.bufPrint(&identifier_buf, "{s}", .{identifier_name}) catch return diagnostics.items;
-            log.info("identifier buf: {s}", .{identifier_buf});
             var next_name_start = (num_features_in_bin * @sizeOf(f32)) + @sizeOf(u32);
             for (0..num_features_in_bin) |i| {
-                _ = i; // autofix
                 const name = js_identifiers_bin[next_name_start..][0..32];
                 if (std.mem.eql(u8, &identifier_buf, name)) {
-                    log.info("found!", .{});
+                    // todo: I have no idea why this offset is wrong. The name offset is correct, but this % offset is 4528 when it should be 4512. overshooting it by 16.
+                    const support_percentage_offset = (@sizeOf(f32) * i) + @sizeOf(u32);
+                    const support_percentage: *f32 = @ptrCast(@alignCast(@constCast(js_identifiers_bin[support_percentage_offset..][0..4])));
+                    // const support_percentage: f32 = std.mem.readInt(f32, js_identifiers_bin[support_percentage_offset..][0..4], .little);
+                    log.info("support percentage for {s}: {d}%", .{ identifier_name, support_percentage.* });
+                    log.info("support percentage offset: {d}", .{support_percentage_offset});
+                    log.info("support percentage bytes: {x}", .{support_percentage.*});
                     break;
                 }
                 next_name_start += 32;
