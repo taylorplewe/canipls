@@ -1,4 +1,5 @@
 //! Interface for each language tree-sitter parser to implement
+
 const std = @import("std");
 const lsp = @import("lsp");
 const ts = @import("tree-sitter");

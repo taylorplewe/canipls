@@ -6,10 +6,11 @@ const types = @import("../types.zig");
 const HoverInfo = types.HoverInfo;
 const Parser = @import("Parser.zig");
 
-const log = std.log.scoped(.caniuse_ls);
+const log = std.log.scoped(.canipls);
 
 extern fn tree_sitter_css() callconv(.c) *ts.Language;
 var lang_css: *ts.Language = undefined;
+const css_at_rules_bin: []const u8 = @embedFile("css_at_rules.bin"); // TEMP
 
 pub fn CssParser() Parser {
     return .{
@@ -100,17 +101,49 @@ fn parse(
             const at_rule_node = match.captures[0].node;
             const at_rule_name = code[at_rule_node.startByte()..at_rule_node.endByte()];
 
-            // TEMP
-            if (std.mem.eql(u8, at_rule_name, "@view-transition")) {
-                diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
-                    allocator,
-                    &at_rule_node,
-                    .CssAtRule,
-                    86.99,
-                    start_column,
-                    start_row,
-                )) catch return &.{};
+            // search bin files here!!
+            // TEMP: just open the file here for now lmao
+            const num_features_in_bin = std.mem.readInt(u32, css_at_rules_bin[0..4], .little);
+            // search for feature
+            var identifier_buf: [32]u8 = undefined;
+            @memset(&identifier_buf, 0);
+            _ = std.fmt.bufPrint(&identifier_buf, "{s}", .{at_rule_name[1..]}) catch return diagnostics.items; // remove leading @
+            var next_name_offset = (num_features_in_bin * @sizeOf(f32)) + @sizeOf(u32);
+            for (0..num_features_in_bin) |i| {
+                const name = css_at_rules_bin[next_name_offset..][0..32];
+                if (std.mem.eql(u8, &identifier_buf, name)) {
+                    // todo: I have no idea why this offset is wrong. The name offset is correct, but this % offset is 4528 when it should be 4512. overshooting it by 16.
+                    const support_percentage_offset = (@sizeOf(f32) * i) + @sizeOf(u32);
+                    const support_percentage: *f32 = @ptrCast(@alignCast(@constCast(css_at_rules_bin[support_percentage_offset..][0..4])));
+                    // const support_percentage: f32 = std.mem.readInt(f32, js_identifiers_bin[support_percentage_offset..][0..4], .little);
+                    // log.info("support percentage for {s}: {d}%", .{ at_rule_name, support_percentage.* });
+                    // log.info("support percentage offset: {d}", .{support_percentage_offset});
+                    // log.info("support percentage bytes: {x}", .{support_percentage.*});
+                    // log.info("", .{});
+                    diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                        allocator,
+                        &at_rule_node,
+                        .CssAtRule,
+                        support_percentage.*,
+                        start_column,
+                        start_row,
+                    )) catch return &.{};
+                    break;
+                }
+                next_name_offset += 32;
             }
+
+            // // TEMP
+            // if (std.mem.eql(u8, at_rule_name, "@view-transition")) {
+            //     diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+            //         allocator,
+            //         &at_rule_node,
+            //         .CssAtRule,
+            //         86.99,
+            //         start_column,
+            //         start_row,
+            //     )) catch return &.{};
+            // }
         }
 
         // ::pseudo-element selectors
