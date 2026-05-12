@@ -77,7 +77,7 @@ pub fn getHoverDocAtPosition(
     if (hover_info) |info| {
         const hover_content = std.fmt.allocPrint(
             temp_allocator,
-            "# {s}\n*{d:.2}%* global support on caniuse.com\n\n[See \"{s}\" on caniuse.com](" ++ CANIUSE_HREF_PREFIX ++ "{s})",
+            "**{d:.2}%** global support on caniuse.com\n\n[See \"{s}\" on caniuse.com](" ++ CANIUSE_HREF_PREFIX ++ "{s})",
             .{
                 info.identifier,
                 info.support_percentage,
