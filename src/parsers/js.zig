@@ -138,12 +138,19 @@ fn getHoverInfoAtPosition(
     row: u32,
 ) ?HoverInfo {
     const QUERY_IDENTIFIERS = "(identifier) @name";
-    const QUERY_TAG_NAME_AND_ATTRS =
-        \\(jsx_opening_element
-        \\  (identifier) @tagname
-        \\  (jsx_attribute
-        \\    (property_identifier) @attrname
-        \\  )*
+    const QUERY_JSX_TAGS =
+        \\[
+        \\  (jsx_opening_element
+        \\    (identifier) @tagname
+        \\  )
+        \\  (jsx_closing_element
+        \\    (identifier) @tagname
+        \\  )
+        \\]
+    ;
+    const QUERY_JSX_ATTRS =
+        \\(jsx_attribute
+        \\  (property_identifier) @attrname
         \\)
     ;
 
@@ -163,11 +170,16 @@ fn getHoverInfoAtPosition(
             return null;
         };
         defer query_identifiers.destroy();
-        const query_jsx_tags_and_attrs = ts.Query.create(lang_javascript, QUERY_TAG_NAME_AND_ATTRS, &error_offset) catch |err| {
+        const query_jsx_tags = ts.Query.create(lang_javascript, QUERY_JSX_TAGS, &error_offset) catch |err| {
             log.err("could not create tree-sitter query: {}", .{err});
             return null;
         };
-        defer query_jsx_tags_and_attrs.destroy();
+        defer query_jsx_tags.destroy();
+        const query_jsx_attrs = ts.Query.create(lang_javascript, QUERY_JSX_ATTRS, &error_offset) catch |err| {
+            log.err("could not create tree-sitter query: {}", .{err});
+            return null;
+        };
+        defer query_jsx_attrs.destroy();
 
         const cursor = ts.QueryCursor.create();
         defer cursor.destroy();
@@ -193,8 +205,24 @@ fn getHoverInfoAtPosition(
             }
         }
 
-        // JSX elements and attributes
-        cursor.exec(query_jsx_tags_and_attrs, root_node);
+        // JSX attributes
+        cursor.exec(query_jsx_tags, root_node);
+        while (cursor.nextMatch()) |match| {
+            const attr_node = match.captures[0].node;
+            const attr_name = code[attr_node.startByte()..attr_node.endByte()];
+
+            const maybe_attr_support_percentage = Parser.getSupportPercentageForIdentifierFromBin(attr_name, html_attributes_bin);
+            if (maybe_attr_support_percentage) |percentage| {
+                return HoverInfo{
+                    .caniuse_id = "html_elements_geolocation", // TEMP
+                    .identifier = attr_name,
+                    .support_percentage = percentage,
+                };
+            }
+        }
+
+        // JSX elements
+        cursor.exec(query_jsx_tags, root_node);
         while (cursor.nextMatch()) |match| {
             const tag_node = match.captures[0].node;
             const tag_name = code[tag_node.startByte()..tag_node.endByte()];
@@ -207,21 +235,22 @@ fn getHoverInfoAtPosition(
                     .support_percentage = percentage,
                 };
             }
-
-            for (match.captures[1..]) |capture| {
-                const attr_node = capture.node;
-                const attr_name = code[attr_node.startByte()..attr_node.endByte()];
-
-                const maybe_attr_support_percentage = Parser.getSupportPercentageForIdentifierFromBin(attr_name, html_attributes_bin);
-                if (maybe_attr_support_percentage) |percentage| {
-                    return HoverInfo{
-                        .caniuse_id = "html_elements_geolocation", // TEMP
-                        .identifier = attr_name,
-                        .support_percentage = percentage,
-                    };
-                }
-            }
         }
+
+        //     for (match.captures[1..]) |capture| {
+        //         const attr_node = capture.node;
+        //         const attr_name = code[attr_node.startByte()..attr_node.endByte()];
+
+        //         const maybe_attr_support_percentage = Parser.getSupportPercentageForIdentifierFromBin(attr_name, html_attributes_bin);
+        //         if (maybe_attr_support_percentage) |percentage| {
+        //             return HoverInfo{
+        //                 .caniuse_id = "html_elements_geolocation", // TEMP
+        //                 .identifier = attr_name,
+        //                 .support_percentage = percentage,
+        //             };
+        //         }
+        //     }
+        // }
     }
 
     return null;
