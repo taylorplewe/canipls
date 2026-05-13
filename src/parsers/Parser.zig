@@ -79,7 +79,7 @@ fn getDiagnosticPhraseFromElement(allocator: std.mem.Allocator, element_kind: El
     };
 }
 var identifier_buf: [32]u8 = undefined;
-pub fn getLowSupportPercentageOrNullFromBin(
+pub fn getSupportPercentageForIdentifierFromBin(
     identifier_name: []const u8,
     bin: []const u8,
 ) ?f32 {
@@ -96,7 +96,7 @@ pub fn getLowSupportPercentageOrNullFromBin(
         if (std.mem.eql(u8, &identifier_buf, name)) {
             const support_percentage_offset = (@sizeOf(f32) * i) + @sizeOf(u32);
             const support_percentage: *f32 = @ptrCast(@alignCast(@constCast(bin[support_percentage_offset..][0..4])));
-            return if (support_percentage.* < THRESHOLD) support_percentage.* else null;
+            return support_percentage.*;
         }
         next_name_offset += BIN_FILE_STRING_WIDTH;
     }

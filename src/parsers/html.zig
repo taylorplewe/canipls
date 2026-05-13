@@ -94,9 +94,9 @@ pub fn parseHtmlAndReturnDiagnostics(
             const tag_node = match.captures[0].node;
             const tag_name = code[tag_node.startByte()..tag_node.endByte()];
 
-            const maybe_tag_support_percentage = Parser.getLowSupportPercentageOrNullFromBin(tag_name, html_tags_bin);
+            const maybe_tag_support_percentage = Parser.getSupportPercentageForIdentifierFromBin(tag_name, html_tags_bin);
             if (maybe_tag_support_percentage) |percentage| {
-                diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                if (percentage < 90.0) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
                     allocator,
                     &tag_node,
                     .HtmlElement,
@@ -110,9 +110,9 @@ pub fn parseHtmlAndReturnDiagnostics(
                 const attr_node = capture.node;
                 const attr_name = code[attr_node.startByte()..attr_node.endByte()];
 
-                const maybe_attr_support_percentage = Parser.getLowSupportPercentageOrNullFromBin(attr_name, html_attributes_bin);
+                const maybe_attr_support_percentage = Parser.getSupportPercentageForIdentifierFromBin(attr_name, html_attributes_bin);
                 if (maybe_attr_support_percentage) |percentage| {
-                    diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                    if (percentage < 90.0) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
                         allocator,
                         &attr_node,
                         .HtmlAttribute,
@@ -196,7 +196,10 @@ fn getHoverInfoAtPosition(
         var cursor = ts.QueryCursor.create();
         defer cursor.destroy();
 
-        cursor.setPointRange(.{ .column = column, .row = row }, .{ .column = column, .row = row }) catch return null;
+        cursor.setPointRange(
+            .{ .column = column, .row = row },
+            .{ .column = column, .row = row },
+        ) catch return null;
 
         // elements and attributes
         cursor.exec(query_tags_and_attrs, node);
@@ -204,11 +207,12 @@ fn getHoverInfoAtPosition(
             const tag_node = match.captures[0].node;
             const tag_name = code[tag_node.startByte()..tag_node.endByte()];
 
-            if (std.mem.eql(u8, tag_name, "geolocation")) {
+            const maybe_tag_support_percentage = Parser.getSupportPercentageForIdentifierFromBin(tag_name, html_tags_bin);
+            if (maybe_tag_support_percentage) |percentage| {
                 return HoverInfo{
-                    .caniuse_id = "html_elements_geolocation",
+                    .caniuse_id = "html_elements_geolocation", // TEMP
                     .identifier = tag_name,
-                    .support_percentage = 75.86,
+                    .support_percentage = percentage,
                 };
             }
 
@@ -216,15 +220,18 @@ fn getHoverInfoAtPosition(
                 const attr_node = capture.node;
                 const attr_name = code[attr_node.startByte()..attr_node.endByte()];
 
-                if (std.mem.eql(u8, attr_name, "virtualkeyboardpolicy")) {
+                const maybe_attr_support_percentage = Parser.getSupportPercentageForIdentifierFromBin(attr_name, html_attributes_bin);
+                if (maybe_attr_support_percentage) |percentage| {
                     return HoverInfo{
-                        .caniuse_id = "api_htmlelement_virtualkeyboardpolicy",
+                        .caniuse_id = "api_htmlelement_virtualkeyboardpolicy", // TEMP
                         .identifier = attr_name,
-                        .support_percentage = 75.86,
+                        .support_percentage = percentage,
                     };
                 }
             }
         }
+
+        // TODO: css and js injection goes here
     }
 
     return null;
