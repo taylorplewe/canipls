@@ -11,6 +11,8 @@ const log = std.log.scoped(.caniuse_ls);
 extern fn tree_sitter_javascript() callconv(.c) *ts.Language;
 var lang_javascript: *ts.Language = undefined;
 const js_identifiers_bin: []const u8 = @embedFile("js_identifiers.bin"); // TEMP
+const html_tags_bin: []const u8 = @embedFile("html_tags.bin"); // TEMP
+const html_attributes_bin: []const u8 = @embedFile("html_attributes.bin"); // TEMP
 
 pub fn JavascriptParser() Parser {
     return .{
@@ -100,26 +102,26 @@ fn parse(
                 next_name_start += 32;
             }
 
-            // TEMP
-            if (std.mem.eql(u8, identifier_name, "trustedTypes")) {
-                diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
-                    allocator,
-                    &identifier_node,
-                    .JsApi,
-                    88.95,
-                    start_column,
-                    start_row,
-                )) catch return &.{};
-            } else if (std.mem.eql(u8, identifier_name, "Temporal")) {
-                diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
-                    allocator,
-                    &identifier_node,
-                    .JsApi,
-                    69.28,
-                    start_column,
-                    start_row,
-                )) catch return &.{};
-            }
+            // // TEMP
+            // if (std.mem.eql(u8, identifier_name, "trustedTypes")) {
+            //     diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+            //         allocator,
+            //         &identifier_node,
+            //         .JsApi,
+            //         88.95,
+            //         start_column,
+            //         start_row,
+            //     )) catch return &.{};
+            // } else if (std.mem.eql(u8, identifier_name, "Temporal")) {
+            //     diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+            //         allocator,
+            //         &identifier_node,
+            //         .JsApi,
+            //         69.28,
+            //         start_column,
+            //         start_row,
+            //     )) catch return &.{};
+            // }
         }
 
         // JSX elements and attributes
@@ -128,13 +130,13 @@ fn parse(
             const tag_node = match.captures[0].node;
             const tag_name = code[tag_node.startByte()..tag_node.endByte()];
 
-            // send diagnostic on <geolocation> element
-            if (std.mem.eql(u8, tag_name, "geolocation")) {
-                diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+            const maybe_tag_support_percentage = Parser.getSupportPercentageForIdentifierFromBin(tag_name, html_tags_bin);
+            if (maybe_tag_support_percentage) |percentage| {
+                if (percentage < 90.0) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
                     allocator,
                     &tag_node,
                     .HtmlElement,
-                    75.86,
+                    percentage,
                     start_column,
                     start_row,
                 )) catch return &.{};
@@ -144,13 +146,13 @@ fn parse(
                 const attr_node = capture.node;
                 const attr_name = code[attr_node.startByte()..attr_node.endByte()];
 
-                // send diagnostic on "virtualkeyboardpolicy" attribute
-                if (std.mem.eql(u8, attr_name, "virtualkeyboardpolicy")) {
-                    diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                const maybe_attr_support_percentage = Parser.getSupportPercentageForIdentifierFromBin(attr_name, html_attributes_bin);
+                if (maybe_attr_support_percentage) |percentage| {
+                    if (percentage < 90.0) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
                         allocator,
                         &attr_node,
                         .HtmlAttribute,
-                        75.86,
+                        percentage,
                         start_column,
                         start_row,
                     )) catch return &.{};

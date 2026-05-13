@@ -164,14 +164,8 @@ fn getHoverInfoAtPosition(
     column: u32,
     row: u32,
 ) ?HoverInfo {
-    const START_TAG_NAME_AND_ATTRS_QUERY =
-        \\(start_tag
-        \\  (tag_name) @tagname
-        \\  (attribute
-        \\    (attribute_name) @attrname
-        \\  )*
-        \\)
-    ;
+    const TAG_NAME_QUERY = "(tag_name) @tagname";
+    const ATTR_QUERY = "(attribute_name) @attrname";
 
     const STYLE_BLOCKS = "(style_element (raw_text) @css)";
     const SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
@@ -187,8 +181,10 @@ fn getHoverInfoAtPosition(
         const node = ast.rootNode();
 
         var error_offset: u32 = 0;
-        const query_tags_and_attrs = ts.Query.create(lang_html, START_TAG_NAME_AND_ATTRS_QUERY, &error_offset) catch return null;
-        defer query_tags_and_attrs.destroy();
+        const query_tags = ts.Query.create(lang_html, TAG_NAME_QUERY, &error_offset) catch return null;
+        defer query_tags.destroy();
+        const query_attrs = ts.Query.create(lang_html, ATTR_QUERY, &error_offset) catch return null;
+        defer query_attrs.destroy();
         const query_style_blocks = ts.Query.create(lang_html, STYLE_BLOCKS, &error_offset) catch return null;
         defer query_style_blocks.destroy();
         const query_script_blocks = ts.Query.create(lang_html, SCRIPT_BLOCKS, &error_offset) catch return null;
@@ -202,8 +198,8 @@ fn getHoverInfoAtPosition(
             .{ .column = column, .row = row },
         ) catch return null;
 
-        // elements and attributes
-        cursor.exec(query_tags_and_attrs, node);
+        // elements
+        cursor.exec(query_tags, node);
         while (cursor.nextMatch()) |match| {
             const tag_node = match.captures[0].node;
             const tag_name = code[tag_node.startByte()..tag_node.endByte()];
@@ -216,19 +212,21 @@ fn getHoverInfoAtPosition(
                     .support_percentage = percentage,
                 };
             }
+        }
 
-            for (match.captures[1..]) |capture| {
-                const attr_node = capture.node;
-                const attr_name = code[attr_node.startByte()..attr_node.endByte()];
+        // attributes
+        cursor.exec(query_attrs, node);
+        while (cursor.nextMatch()) |match| {
+            const attr_node = match.captures[0].node;
+            const attr_name = code[attr_node.startByte()..attr_node.endByte()];
 
-                const maybe_attr_support_percentage = Parser.getSupportPercentageForIdentifierFromBin(attr_name, html_attributes_bin);
-                if (maybe_attr_support_percentage) |percentage| {
-                    return HoverInfo{
-                        .caniuse_id = "api_htmlelement_virtualkeyboardpolicy", // TEMP
-                        .identifier = attr_name,
-                        .support_percentage = percentage,
-                    };
-                }
+            const maybe_attr_support_percentage = Parser.getSupportPercentageForIdentifierFromBin(attr_name, html_attributes_bin);
+            if (maybe_attr_support_percentage) |percentage| {
+                return HoverInfo{
+                    .caniuse_id = "html_elements_geolocation", // TEMP
+                    .identifier = attr_name,
+                    .support_percentage = percentage,
+                };
             }
         }
 
@@ -251,7 +249,7 @@ fn getHoverInfoAtPosition(
 
             const js_row = row - js_node.startPoint().row;
             const js_column = if (js_row == 0) column - js_node.startPoint().column else column;
-            return js.JsParser().getHoverInfoAtPosition(js_code, js_column, js_row);
+            return js.JavascriptParser().getHoverInfoAtPosition(js_code, js_column, js_row);
         }
     }
 
