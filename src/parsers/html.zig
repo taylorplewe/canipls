@@ -158,6 +158,7 @@ pub fn parseHtmlAndReturnDiagnostics(
     return diagnostics.items;
 }
 
+/// TODO: most of this code is copy-pasted from the parse function (same goes for other parsers), abstract the code out somehow
 fn getHoverInfoAtPosition(
     code: []const u8,
     column: u32,
@@ -231,8 +232,6 @@ fn getHoverInfoAtPosition(
             }
         }
 
-        // TODO: css and js injection goes here
-
         // style (CSS) blocks
         cursor.exec(query_style_blocks, node);
         while (cursor.nextMatch()) |match| {
@@ -242,14 +241,17 @@ fn getHoverInfoAtPosition(
             const css_row = row - css_node.startPoint().row;
             const css_column = if (css_row == 0) column - css_node.startPoint().column else column;
             return css.CssParser().getHoverInfoAtPosition(css_code, css_column, css_row);
+        }
 
-            // const css_diagnostics = css.CssParser().parse(
-            //     allocator,
-            //     css_code,
-            //     css_node.startPoint().column,
-            //     css_node.startPoint().row,
-            // );
-            // diagnostics.appendSlice(allocator, css_diagnostics) catch return &.{};
+        // script (JS) blocks
+        cursor.exec(query_script_blocks, node);
+        while (cursor.nextMatch()) |match| {
+            const js_node = match.captures[0].node;
+            const js_code = code[js_node.startByte()..js_node.endByte()];
+
+            const js_row = row - js_node.startPoint().row;
+            const js_column = if (js_row == 0) column - js_node.startPoint().column else column;
+            return js.JsParser().getHoverInfoAtPosition(js_code, js_column, js_row);
         }
     }
 
