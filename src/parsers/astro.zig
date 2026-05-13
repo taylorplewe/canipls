@@ -8,7 +8,7 @@ const Parser = @import("Parser.zig");
 const html = @import("html.zig");
 const js = @import("js.zig");
 
-const log = std.log.scoped(.caniuse_ls);
+const log = std.log.scoped(.canipls);
 
 extern fn tree_sitter_astro() callconv(.c) *ts.Language;
 var lang_astro: *ts.Language = undefined;

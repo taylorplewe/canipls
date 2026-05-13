@@ -1,6 +1,6 @@
 const std = @import("std");
 const lsp = @import("lsp");
-const log = std.log.scoped(.caniuse_ls);
+const log = std.log.scoped(.canipls);
 
 const Handler = @import("Handler.zig");
 const lsp_to_ts = @import("lsp_to_ts.zig");

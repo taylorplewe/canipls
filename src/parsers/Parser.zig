@@ -6,7 +6,7 @@ const ts = @import("tree-sitter");
 
 const types = @import("../types.zig");
 const HoverInfo = types.HoverInfo;
-const log = std.log.scoped(.caniuse_ls);
+const log = std.log.scoped(.canipls);
 
 const BIN_FILE_STRING_WIDTH = 32;
 const THRESHOLD = 90.0; // TEMP

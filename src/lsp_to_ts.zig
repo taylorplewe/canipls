@@ -12,7 +12,7 @@ const js_parser = @import("parsers/js.zig");
 const svelte_parser = @import("parsers/svelte.zig");
 const astro_parser = @import("parsers/astro.zig");
 
-const log = std.log.scoped(.caniuse_ls);
+const log = std.log.scoped(.canipls);
 
 const parsers: std.StaticStringMap(Parser) = .initComptime(.{
     .{ "html", html_parser.HtmlParser() },
@@ -43,7 +43,10 @@ fn getParserFromLspLanguageKind(language_kind: lsp.types.TextDocument.LanguageKi
         .javascriptreact => return parsers.get("javascript"),
         .typescriptreact => return parsers.get("javascript"),
         .custom_value => |kind| {
+            log.info("custom type: {s}", .{kind});
             return if (std.mem.eql(u8, kind, "vue"))
+                parsers.get("html")
+            else if (std.mem.eql(u8, kind, "Vue.js"))
                 parsers.get("html")
             else if (std.mem.eql(u8, kind, "svelte"))
                 parsers.get("svelte")

@@ -7,7 +7,7 @@ const HoverInfo = types.HoverInfo;
 const Parser = @import("Parser.zig");
 const html = @import("html.zig");
 
-const log = std.log.scoped(.caniuse_ls);
+const log = std.log.scoped(.canipls);
 
 extern fn tree_sitter_svelte() callconv(.c) *ts.Language;
 var lang_svelte: *ts.Language = undefined;
