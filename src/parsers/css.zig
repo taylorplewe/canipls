@@ -13,6 +13,7 @@ var lang_css: *ts.Language = undefined;
 const css_at_rules_bin: []const u8 = @embedFile("css_at_rules.bin"); // TEMP
 const css_selectors_bin: []const u8 = @embedFile("css_selectors.bin"); // TEMP
 const css_properties_bin: []const u8 = @embedFile("css_props.bin"); // TEMP
+const THRESHOLD = 90.0; // TEMP
 
 pub fn CssParser() Parser {
     return .{
@@ -95,14 +96,15 @@ fn parse(
                 if (std.mem.eql(u8, &identifier_buf, name)) {
                     const support_percentage_offset = (@sizeOf(f32) * i) + @sizeOf(u32);
                     const support_percentage: *f32 = @ptrCast(@alignCast(@constCast(css_properties_bin[support_percentage_offset..][0..4])));
-                    diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
-                        allocator,
-                        &prop_node,
-                        .CssProp,
-                        support_percentage.*,
-                        start_column,
-                        start_row,
-                    )) catch return &.{};
+                    if (support_percentage.* < THRESHOLD)
+                        diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                            allocator,
+                            &prop_node,
+                            .CssProp,
+                            support_percentage.*,
+                            start_column,
+                            start_row,
+                        )) catch return &.{};
                     break;
                 }
                 next_name_offset += 32;
@@ -126,14 +128,15 @@ fn parse(
                 if (std.mem.eql(u8, &identifier_buf, name)) {
                     const support_percentage_offset = (@sizeOf(f32) * i) + @sizeOf(u32);
                     const support_percentage: *f32 = @ptrCast(@alignCast(@constCast(css_at_rules_bin[support_percentage_offset..][0..4])));
-                    diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
-                        allocator,
-                        &at_rule_node,
-                        .CssAtRule,
-                        support_percentage.*,
-                        start_column,
-                        start_row,
-                    )) catch return &.{};
+                    if (support_percentage.* < THRESHOLD)
+                        diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                            allocator,
+                            &at_rule_node,
+                            .CssAtRule,
+                            support_percentage.*,
+                            start_column,
+                            start_row,
+                        )) catch return &.{};
                     break;
                 }
                 next_name_offset += 32;
@@ -157,14 +160,15 @@ fn parse(
                 if (std.mem.eql(u8, &identifier_buf, name)) {
                     const support_percentage_offset = (@sizeOf(f32) * i) + @sizeOf(u32);
                     const support_percentage: *f32 = @ptrCast(@alignCast(@constCast(css_selectors_bin[support_percentage_offset..][0..4])));
-                    diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
-                        allocator,
-                        &selector_node,
-                        .CssProp,
-                        support_percentage.*,
-                        start_column,
-                        start_row,
-                    )) catch return &.{};
+                    if (support_percentage.* < THRESHOLD)
+                        diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                            allocator,
+                            &selector_node,
+                            .CssProp,
+                            support_percentage.*,
+                            start_column,
+                            start_row,
+                        )) catch return &.{};
                     break;
                 }
                 next_name_offset += 32;
@@ -188,14 +192,15 @@ fn parse(
                 if (std.mem.eql(u8, &identifier_buf, name)) {
                     const support_percentage_offset = (@sizeOf(f32) * i) + @sizeOf(u32);
                     const support_percentage: *f32 = @ptrCast(@alignCast(@constCast(css_selectors_bin[support_percentage_offset..][0..4])));
-                    diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
-                        allocator,
-                        &selector_node,
-                        .CssProp,
-                        support_percentage.*,
-                        start_column,
-                        start_row,
-                    )) catch return &.{};
+                    if (support_percentage.* < THRESHOLD)
+                        diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                            allocator,
+                            &selector_node,
+                            .CssProp,
+                            support_percentage.*,
+                            start_column,
+                            start_row,
+                        )) catch return &.{};
                     break;
                 }
                 next_name_offset += 32;
