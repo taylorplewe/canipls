@@ -12,6 +12,8 @@ const log = std.log.scoped(.caniuse_ls);
 
 extern fn tree_sitter_html() callconv(.c) *ts.Language;
 var lang_html: *ts.Language = undefined;
+const html_tags_bin: []const u8 = @embedFile("html_tags.bin"); // TEMP
+const html_attributes_bin: []const u8 = @embedFile("html_attributes.bin"); // TEMP
 
 pub fn HtmlParser() Parser {
     return .{
@@ -92,13 +94,13 @@ pub fn parseHtmlAndReturnDiagnostics(
             const tag_node = match.captures[0].node;
             const tag_name = code[tag_node.startByte()..tag_node.endByte()];
 
-            // send diagnostic on <geolocation> element
-            if (std.mem.eql(u8, tag_name, "geolocation")) {
+            const maybe_tag_support_percentage = Parser.getLowSupportPercentageOrNullFromBin(tag_name, html_tags_bin);
+            if (maybe_tag_support_percentage) |percentage| {
                 diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
                     allocator,
                     &tag_node,
                     .HtmlElement,
-                    75.86,
+                    percentage,
                     start_column,
                     start_row,
                 )) catch return &.{};
@@ -108,13 +110,13 @@ pub fn parseHtmlAndReturnDiagnostics(
                 const attr_node = capture.node;
                 const attr_name = code[attr_node.startByte()..attr_node.endByte()];
 
-                // send diagnostic on "virtualkeyboardpolicy" attribute
-                if (std.mem.eql(u8, attr_name, "virtualkeyboardpolicy")) {
+                const maybe_attr_support_percentage = Parser.getLowSupportPercentageOrNullFromBin(attr_name, html_attributes_bin);
+                if (maybe_attr_support_percentage) |percentage| {
                     diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
                         allocator,
                         &attr_node,
                         .HtmlAttribute,
-                        75.86,
+                        percentage,
                         start_column,
                         start_row,
                     )) catch return &.{};

@@ -85,29 +85,16 @@ fn parse(
             const prop_node = match.captures[0].node;
             const prop_name = code[prop_node.startByte()..prop_node.endByte()];
 
-            const num_features_in_bin = std.mem.readInt(u32, css_properties_bin[0..4], .little);
-            // search for feature
-            var identifier_buf: [32]u8 = undefined;
-            @memset(&identifier_buf, 0);
-            _ = std.fmt.bufPrint(&identifier_buf, "{s}", .{prop_name[0..]}) catch return diagnostics.items; // remove leading @
-            var next_name_offset = (num_features_in_bin * @sizeOf(f32)) + @sizeOf(u32);
-            for (0..num_features_in_bin) |i| {
-                const name = css_properties_bin[next_name_offset..][0..32];
-                if (std.mem.eql(u8, &identifier_buf, name)) {
-                    const support_percentage_offset = (@sizeOf(f32) * i) + @sizeOf(u32);
-                    const support_percentage: *f32 = @ptrCast(@alignCast(@constCast(css_properties_bin[support_percentage_offset..][0..4])));
-                    if (support_percentage.* < THRESHOLD)
-                        diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
-                            allocator,
-                            &prop_node,
-                            .CssProp,
-                            support_percentage.*,
-                            start_column,
-                            start_row,
-                        )) catch return &.{};
-                    break;
-                }
-                next_name_offset += 32;
+            const maybe_support_percentage = Parser.getLowSupportPercentageOrNullFromBin(prop_name, css_properties_bin);
+            if (maybe_support_percentage) |percentage| {
+                diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                    allocator,
+                    &prop_node,
+                    .CssProp,
+                    percentage,
+                    start_column,
+                    start_row,
+                )) catch return &.{};
             }
         }
 
@@ -117,93 +104,38 @@ fn parse(
             const at_rule_node = match.captures[0].node;
             const at_rule_name = code[at_rule_node.startByte()..at_rule_node.endByte()];
 
-            const num_features_in_bin = std.mem.readInt(u32, css_at_rules_bin[0..4], .little);
-            // search for feature
-            var identifier_buf: [32]u8 = undefined;
-            @memset(&identifier_buf, 0);
-            _ = std.fmt.bufPrint(&identifier_buf, "{s}", .{at_rule_name[1..]}) catch return diagnostics.items; // remove leading @
-            var next_name_offset = (num_features_in_bin * @sizeOf(f32)) + @sizeOf(u32);
-            for (0..num_features_in_bin) |i| {
-                const name = css_at_rules_bin[next_name_offset..][0..32];
-                if (std.mem.eql(u8, &identifier_buf, name)) {
-                    const support_percentage_offset = (@sizeOf(f32) * i) + @sizeOf(u32);
-                    const support_percentage: *f32 = @ptrCast(@alignCast(@constCast(css_at_rules_bin[support_percentage_offset..][0..4])));
-                    if (support_percentage.* < THRESHOLD)
-                        diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
-                            allocator,
-                            &at_rule_node,
-                            .CssAtRule,
-                            support_percentage.*,
-                            start_column,
-                            start_row,
-                        )) catch return &.{};
-                    break;
-                }
-                next_name_offset += 32;
+            const maybe_support_percentage = Parser.getLowSupportPercentageOrNullFromBin(at_rule_name[1..], css_at_rules_bin);
+            if (maybe_support_percentage) |percentage| {
+                diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                    allocator,
+                    &at_rule_node,
+                    .CssAtRule,
+                    percentage,
+                    start_column,
+                    start_row,
+                )) catch return &.{};
             }
         }
 
-        // ::pseudo-element selectors
-        cursor.exec(query_pseudo_element_selectors, root_node);
-        while (cursor.nextMatch()) |match| {
-            const selector_node = match.captures[0].node;
-            const selector_name = code[selector_node.startByte()..selector_node.endByte()];
+        // NOTE: may distinguish between pseudo element selectors (::) and pseudo class selectors (:) using BCD features' `__compat.description`
+        // psudeo selctors
+        for ([_]*ts.Query{ query_pseudo_element_selectors, query_pseudo_class_selectors }) |query| {
+            cursor.exec(query, root_node);
+            while (cursor.nextMatch()) |match| {
+                const selector_node = match.captures[0].node;
+                const selector_name = code[selector_node.startByte()..selector_node.endByte()];
 
-            const num_features_in_bin = std.mem.readInt(u32, css_selectors_bin[0..4], .little);
-            // search for feature
-            var identifier_buf: [32]u8 = undefined;
-            @memset(&identifier_buf, 0);
-            _ = std.fmt.bufPrint(&identifier_buf, "{s}", .{selector_name[0..]}) catch return diagnostics.items; // remove leading @
-            var next_name_offset = (num_features_in_bin * @sizeOf(f32)) + @sizeOf(u32);
-            for (0..num_features_in_bin) |i| {
-                const name = css_selectors_bin[next_name_offset..][0..32];
-                if (std.mem.eql(u8, &identifier_buf, name)) {
-                    const support_percentage_offset = (@sizeOf(f32) * i) + @sizeOf(u32);
-                    const support_percentage: *f32 = @ptrCast(@alignCast(@constCast(css_selectors_bin[support_percentage_offset..][0..4])));
-                    if (support_percentage.* < THRESHOLD)
-                        diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
-                            allocator,
-                            &selector_node,
-                            .CssProp,
-                            support_percentage.*,
-                            start_column,
-                            start_row,
-                        )) catch return &.{};
-                    break;
+                const maybe_support_percentage = Parser.getLowSupportPercentageOrNullFromBin(selector_name, css_selectors_bin);
+                if (maybe_support_percentage) |percentage| {
+                    diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                        allocator,
+                        &selector_node,
+                        .CssSelector,
+                        percentage,
+                        start_column,
+                        start_row,
+                    )) catch return &.{};
                 }
-                next_name_offset += 32;
-            }
-        }
-
-        // :pseudo-class selectors
-        cursor.exec(query_pseudo_class_selectors, root_node);
-        while (cursor.nextMatch()) |match| {
-            const selector_node = match.captures[0].node;
-            const selector_name = code[selector_node.startByte()..selector_node.endByte()];
-
-            const num_features_in_bin = std.mem.readInt(u32, css_selectors_bin[0..4], .little);
-            // search for feature
-            var identifier_buf: [32]u8 = undefined;
-            @memset(&identifier_buf, 0);
-            _ = std.fmt.bufPrint(&identifier_buf, "{s}", .{selector_name[0..]}) catch return diagnostics.items; // remove leading @
-            var next_name_offset = (num_features_in_bin * @sizeOf(f32)) + @sizeOf(u32);
-            for (0..num_features_in_bin) |i| {
-                const name = css_selectors_bin[next_name_offset..][0..32];
-                if (std.mem.eql(u8, &identifier_buf, name)) {
-                    const support_percentage_offset = (@sizeOf(f32) * i) + @sizeOf(u32);
-                    const support_percentage: *f32 = @ptrCast(@alignCast(@constCast(css_selectors_bin[support_percentage_offset..][0..4])));
-                    if (support_percentage.* < THRESHOLD)
-                        diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
-                            allocator,
-                            &selector_node,
-                            .CssProp,
-                            support_percentage.*,
-                            start_column,
-                            start_row,
-                        )) catch return &.{};
-                    break;
-                }
-                next_name_offset += 32;
             }
         }
     }

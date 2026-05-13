@@ -8,6 +8,9 @@ const types = @import("../types.zig");
 const HoverInfo = types.HoverInfo;
 const log = std.log.scoped(.caniuse_ls);
 
+const BIN_FILE_STRING_WIDTH = 32;
+const THRESHOLD = 90.0; // TEMP
+
 init: *const fn (io: std.Io) void,
 deinit: *const fn () void,
 parse: *const fn (
@@ -27,8 +30,7 @@ const ElementKind = enum {
     HtmlAttribute,
     CssProp,
     CssAtRule,
-    CssPseudoElementSelector,
-    CssPseudoClassSelector,
+    CssSelector,
     JsApi,
 
     fn getWord(self: ElementKind) []const u8 {
@@ -37,8 +39,7 @@ const ElementKind = enum {
             .HtmlAttribute => "attribute",
             .CssProp => "property",
             .CssAtRule => "at-rule",
-            .CssPseudoElementSelector => "pseudo element selector",
-            .CssPseudoClassSelector => "pseudo class selector",
+            .CssSelector => "selector",
             .JsApi => "API",
         };
     }
@@ -76,4 +77,28 @@ fn getDiagnosticPhraseFromElement(allocator: std.mem.Allocator, element_kind: El
         log.err("could not allocPrint diagnostic message: {}", .{err});
         return "";
     };
+}
+var identifier_buf: [32]u8 = undefined;
+pub fn getLowSupportPercentageOrNullFromBin(
+    identifier_name: []const u8,
+    bin: []const u8,
+) ?f32 {
+    const num_features_in_bin = std.mem.readInt(u32, bin[0..4], .little);
+
+    // make identifier name in question 32-chars wide, padded with 0's
+    @memcpy(identifier_buf[0..identifier_name.len], identifier_name);
+    @memset(identifier_buf[identifier_name.len..], 0);
+
+    // search for feature
+    var next_name_offset = (num_features_in_bin * @sizeOf(f32)) + @sizeOf(u32);
+    for (0..num_features_in_bin) |i| {
+        const name = bin[next_name_offset..][0..BIN_FILE_STRING_WIDTH];
+        if (std.mem.eql(u8, &identifier_buf, name)) {
+            const support_percentage_offset = (@sizeOf(f32) * i) + @sizeOf(u32);
+            const support_percentage: *f32 = @ptrCast(@alignCast(@constCast(bin[support_percentage_offset..][0..4])));
+            return if (support_percentage.* < THRESHOLD) support_percentage.* else null;
+        }
+        next_name_offset += BIN_FILE_STRING_WIDTH;
+    }
+    return null;
 }
