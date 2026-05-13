@@ -232,6 +232,25 @@ fn getHoverInfoAtPosition(
         }
 
         // TODO: css and js injection goes here
+
+        // style (CSS) blocks
+        cursor.exec(query_style_blocks, node);
+        while (cursor.nextMatch()) |match| {
+            const css_node = match.captures[0].node;
+            const css_code = code[css_node.startByte()..css_node.endByte()];
+
+            const css_row = row - css_node.startPoint().row;
+            const css_column = if (css_row == 0) column - css_node.startPoint().column else column;
+            return css.CssParser().getHoverInfoAtPosition(css_code, css_column, css_row);
+
+            // const css_diagnostics = css.CssParser().parse(
+            //     allocator,
+            //     css_code,
+            //     css_node.startPoint().column,
+            //     css_node.startPoint().row,
+            // );
+            // diagnostics.appendSlice(allocator, css_diagnostics) catch return &.{};
+        }
     }
 
     return null;
