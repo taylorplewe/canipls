@@ -109,7 +109,9 @@ pub fn parseHtmlAndReturnDiagnostics(
                 " \t",
             );
 
-            if (std.mem.eql(u8, comment, "canipls-ignore")) {
+            if (std.mem.eql(u8, comment, "canipls-ignore-file")) {
+                return &.{};
+            } else if (std.mem.eql(u8, comment, "canipls-ignore")) {
                 ignored_spans.append(allocator, .{ .line = comment_node.startPoint().row }) catch return &.{};
             } else if (std.mem.eql(u8, comment, "canipls-ignore-start")) {
                 if (current_ignore_region_start_row) |row_start| {
@@ -142,11 +144,7 @@ pub fn parseHtmlAndReturnDiagnostics(
                         .severity = .Warning,
                     }) catch return &.{};
                 }
-            } else if (std.mem.eql(u8, comment, "canipls-ignore-file")) {
-                return &.{};
             }
-
-            log.info("comment: {s}", .{comment});
         }
 
         // elements and attributes
@@ -185,6 +183,7 @@ pub fn parseHtmlAndReturnDiagnostics(
                 const attr_name = code[attr_node.startByte()..attr_node.endByte()];
 
                 // NOTE: no ignore check needed since comments could not appear alongside individual attributes
+
                 const maybe_attr_support_percentage = Parser.getSupportPercentageForIdentifierFromBin(attr_name, html_attributes_bin);
                 if (maybe_attr_support_percentage) |percentage| {
                     if (percentage < 90.0) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
