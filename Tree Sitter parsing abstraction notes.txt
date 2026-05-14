@@ -1,0 +1,134 @@
+there may be able to be one big parse() function that all the implementation parse() functions call into
+
+it may also be able to double as the hover one?
+
+its parameters:
+- *ts.Language
+- list of *ts.Query's
+- list of bin files per query
+- list of of element kind per query
+- comment trim callback
+- some way of knowing whether to chop off the first character of at-rules (@)
+
+
+COMMON CODE:
+
+    const parser = ts.Parser.create();
+    defer parser.destroy();
+    parser.setLanguage(lang_css) catch return &.{};
+
+    var diagnostics: std.ArrayList(lsp.types.Diagnostic) = .empty;
+
+    const parse_res = parser.parseString(code, null);
+    if (parse_res) |ast| {
+        defer ast.destroy();
+
+        const root_node = ast.rootNode();
+
+(instantiating query's is different)
+
+        const cursor = ts.QueryCursor.create();
+        defer cursor.destroy();
+
+        // comments (look for canipls-ignore)
+        var ignored_spans: std.ArrayList(IgnoredSpan) = .empty;
+        defer ignored_spans.deinit(allocator);
+        var current_ignore_region_start_row: ?usize = null;
+        cursor.exec(query_comments, root_node);
+        while (cursor.nextMatch()) |match| {
+            const comment_node = match.captures[0].node;
+            const comment_raw = code[comment_node.startByte()..comment_node.endByte()];
+
+(trimming comments is different)
+
+            if (std.mem.eql(u8, comment, "canipls-ignore-file")) {
+                return &.{};
+            } else if (std.mem.eql(u8, comment, "canipls-ignore")) {
+                ignored_spans.append(allocator, .{ .row = comment_node.startPoint().row }) catch return &.{};
+            } else if (std.mem.eql(u8, comment, "canipls-ignore-start")) {
+                if (current_ignore_region_start_row) |row_start| {
+                    diagnostics.append(allocator, .{
+                        .range = .{
+                            .start = .{ .character = comment_node.startPoint().column, .line = comment_node.startPoint().row },
+                            .end = .{ .character = comment_node.endPoint().column, .line = comment_node.endPoint().row },
+                        },
+                        .message = std.fmt.allocPrint(allocator, "This ignore-start shadows the one found on line {d}", .{row_start + 1}) catch "ERROR - could not call allocPrint()",
+                        .severity = .Warning,
+                    }) catch return &.{};
+                } else {
+                    current_ignore_region_start_row = comment_node.startPoint().row;
+                }
+            } else if (std.mem.eql(u8, comment, "canipls-ignore-end")) {
+                if (current_ignore_region_start_row) |row_start| {
+                    ignored_spans.append(
+                        allocator,
+                        .{
+                            .region = .{ .row_start = row_start, .row_end = comment_node.startPoint().row },
+                        },
+                    ) catch return &.{};
+                } else {
+                    diagnostics.append(allocator, .{
+                        .range = .{
+                            .start = .{ .character = comment_node.startPoint().column, .line = comment_node.startPoint().row },
+                            .end = .{ .character = comment_node.endPoint().column, .line = comment_node.endPoint().row },
+                        },
+                        .message = std.fmt.allocPrint(allocator, "This ignore-end has no ignore-start pairing", .{}) catch "ERROR - could not call allocPrint()",
+                        .severity = .Warning,
+                    }) catch return &.{};
+                }
+            }
+        }
+
+(then for each query:)
+        // (query kind)
+        cursor.exec(query, root_node);
+        props_loop: while (cursor.nextMatch()) |match| {
+            const node = match.captures[0].node;
+            const name = code[node.startByte()..node.endByte()];
+
+            // TODO extract this ignore check out somehow - code is not DRY
+            // contained in an ignore span?
+            for (ignored_spans.items) |span| {
+                switch (span) {
+                    .row => |ignored_row| {
+                        if (prop_node.startPoint().row == ignored_row) continue :props_loop;
+                    },
+                    .region => |ignored_region| {
+                        if (prop_node.startPoint().row > ignored_region.row_start and prop_node.startPoint().row < ignored_region.row_end) continue :props_loop;
+                    },
+                }
+            }
+
+(and then given the above parameters:)
+            const maybe_support_percentage = Parser.getSupportPercentageForIdentifierFromBin(name, bin);
+            if (maybe_support_percentage) |percentage| {
+                if (percentage < 90.0) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                    allocator,
+                    &node,
+                    element_kind,
+                    percentage,
+                    start_column,
+                    start_row,
+                )) catch return &.{};
+            }
+
+
+HOVER DOC SAME CODE:
+(literally the exact same as parse code except for:)
+
+    // this comes right after instantiating the cursor
+    cursor.setPointRange(
+        .{ .column = column, .row = row },
+        .{ .column = column, .row = row },
+    ) catch return null;
+
+(instead of adding to diagnostic list:)
+
+    const maybe_support_percentage = Parser.getSupportPercentageForIdentifierFromBin(name, buin);
+    if (maybe_support_percentage) |percentage| {
+        return HoverInfo{
+            .caniuse_id = "html_elements_geolocation", // TEMP
+            .identifier = name,
+            .support_percentage = percentage,
+        };
+    }
