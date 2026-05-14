@@ -61,9 +61,9 @@ pub fn parseHtmlAndReturnDiagnostics(
         \\  )*
         \\)
     ;
-
     const STYLE_BLOCKS = "(style_element (raw_text) @css)";
     const SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
+    const QUERY_COMMENT = "(comment) @comment";
 
     const parser = ts.Parser.create();
     defer parser.destroy();
@@ -75,9 +75,11 @@ pub fn parseHtmlAndReturnDiagnostics(
     if (parse_res) |ast| {
         defer ast.destroy();
 
-        const node = ast.rootNode();
+        const root_node = ast.rootNode();
 
         var error_offset: u32 = 0;
+        const query_comments = ts.Query.create(lang, QUERY_COMMENT, &error_offset) catch return &.{};
+        defer query_comments.destroy();
         const query_tags_and_attrs = ts.Query.create(lang, START_TAG_NAME_AND_ATTRS_QUERY, &error_offset) catch return &.{};
         defer query_tags_and_attrs.destroy();
         const query_style_blocks = ts.Query.create(lang, STYLE_BLOCKS, &error_offset) catch return &.{};
@@ -88,11 +90,83 @@ pub fn parseHtmlAndReturnDiagnostics(
         const cursor = ts.QueryCursor.create();
         defer cursor.destroy();
 
-        // elements and attributes
-        cursor.exec(query_tags_and_attrs, node);
+        // comments (look for canipls-ignore)
+        var ignored_spans: std.ArrayList(Parser.IgnoredSpan) = .empty;
+        defer ignored_spans.deinit(allocator);
+        var current_ignore_region_start_row: ?usize = null;
+        cursor.exec(query_comments, root_node);
         while (cursor.nextMatch()) |match| {
+            const comment_node = match.captures[0].node;
+            const comment_raw = code[comment_node.startByte()..comment_node.endByte()];
+
+            const comment = std.mem.trim(
+                u8,
+                std.mem.cutPrefix(
+                    u8,
+                    std.mem.cutSuffix(u8, comment_raw, "-->").?,
+                    "<!--",
+                ).?,
+                " \t",
+            );
+
+            if (std.mem.eql(u8, comment, "canipls-ignore")) {
+                ignored_spans.append(allocator, .{ .line = comment_node.startPoint().row }) catch return &.{};
+            } else if (std.mem.eql(u8, comment, "canipls-ignore-start")) {
+                if (current_ignore_region_start_row) |row_start| {
+                    diagnostics.append(allocator, .{
+                        .range = .{
+                            .start = .{ .character = comment_node.startPoint().column, .line = comment_node.startPoint().row },
+                            .end = .{ .character = comment_node.endPoint().column, .line = comment_node.endPoint().row },
+                        },
+                        .message = std.fmt.allocPrint(allocator, "This ignore-start shadows the one found on line {d}", .{row_start + 1}) catch "ERROR - could not call allocPrint()",
+                        .severity = .Warning,
+                    }) catch return &.{};
+                } else {
+                    current_ignore_region_start_row = comment_node.startPoint().row;
+                }
+            } else if (std.mem.eql(u8, comment, "canipls-ignore-end")) {
+                if (current_ignore_region_start_row) |row_start| {
+                    ignored_spans.append(
+                        allocator,
+                        .{
+                            .region = .{ .row_start = row_start, .row_end = comment_node.startPoint().row },
+                        },
+                    ) catch return &.{};
+                } else {
+                    diagnostics.append(allocator, .{
+                        .range = .{
+                            .start = .{ .character = comment_node.startPoint().column, .line = comment_node.startPoint().row },
+                            .end = .{ .character = comment_node.endPoint().column, .line = comment_node.endPoint().row },
+                        },
+                        .message = std.fmt.allocPrint(allocator, "This ignore-end has no ignore-start pairing", .{}) catch "ERROR - could not call allocPrint()",
+                        .severity = .Warning,
+                    }) catch return &.{};
+                }
+            } else if (std.mem.eql(u8, comment, "canipls-ignore-file")) {
+                return &.{};
+            }
+
+            log.info("comment: {s}", .{comment});
+        }
+
+        // elements and attributes
+        cursor.exec(query_tags_and_attrs, root_node);
+        els_and_attrs_loop: while (cursor.nextMatch()) |match| {
             const tag_node = match.captures[0].node;
             const tag_name = code[tag_node.startByte()..tag_node.endByte()];
+
+            // TODO extract this ignore check out somehow - code is not DRY
+            // contained in an ignore span?
+            for (ignored_spans.items) |span| {
+                switch (span) {
+                    .line => |ignored_row| {
+                        if (tag_node.startPoint().row == ignored_row) continue :els_and_attrs_loop;
+                    },
+                    .region => |ignored_region| {
+                        if (tag_node.startPoint().row > ignored_region.row_start and tag_node.startPoint().row < ignored_region.row_end) continue :els_and_attrs_loop;
+                    },
+                }
+            }
 
             const maybe_tag_support_percentage = Parser.getSupportPercentageForIdentifierFromBin(tag_name, html_tags_bin);
             if (maybe_tag_support_percentage) |percentage| {
@@ -110,6 +184,7 @@ pub fn parseHtmlAndReturnDiagnostics(
                 const attr_node = capture.node;
                 const attr_name = code[attr_node.startByte()..attr_node.endByte()];
 
+                // NOTE: no ignore check needed since comments could not appear alongside individual attributes
                 const maybe_attr_support_percentage = Parser.getSupportPercentageForIdentifierFromBin(attr_name, html_attributes_bin);
                 if (maybe_attr_support_percentage) |percentage| {
                     if (percentage < 90.0) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
@@ -125,7 +200,7 @@ pub fn parseHtmlAndReturnDiagnostics(
         }
 
         // style (CSS) blocks
-        cursor.exec(query_style_blocks, node);
+        cursor.exec(query_style_blocks, root_node);
         while (cursor.nextMatch()) |match| {
             const css_node = match.captures[0].node;
             const css_code = code[css_node.startByte()..css_node.endByte()];
@@ -140,7 +215,7 @@ pub fn parseHtmlAndReturnDiagnostics(
         }
 
         // script (JS) blocks
-        cursor.exec(query_script_blocks, node);
+        cursor.exec(query_script_blocks, root_node);
         while (cursor.nextMatch()) |match| {
             const js_node = match.captures[0].node;
             const js_code = code[js_node.startByte()..js_node.endByte()];
