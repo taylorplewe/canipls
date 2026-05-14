@@ -4,6 +4,7 @@ const ts = @import("tree-sitter");
 
 const types = @import("../types.zig");
 const HoverInfo = types.HoverInfo;
+const IgnoredSpan = types.IgnoredSpan;
 const Parser = @import("Parser.zig");
 
 const log = std.log.scoped(.canipls);
@@ -85,7 +86,7 @@ fn parse(
         defer cursor.destroy();
 
         // comments (look for canipls-ignore)
-        var ignored_spans: std.ArrayList(Parser.IgnoredSpan) = .empty;
+        var ignored_spans: std.ArrayList(IgnoredSpan) = .empty;
         defer ignored_spans.deinit(allocator);
         var current_ignore_region_start_row: ?usize = null;
         cursor.exec(query_comments, root_node);

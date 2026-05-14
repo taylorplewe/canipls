@@ -7,3 +7,12 @@ pub const HoverInfo = struct {
     /// This gets appended to "https://caniuse.com/mdn-" to form a visitable link
     caniuse_id: []const u8,
 };
+
+/// Represents a span in the code where no diagnostics should be published
+pub const IgnoredSpan = union(enum) {
+    region: struct {
+        row_start: usize,
+        row_end: usize,
+    },
+    line: usize,
+};

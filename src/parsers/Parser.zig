@@ -102,11 +102,3 @@ pub fn getSupportPercentageForIdentifierFromBin(
     }
     return null;
 }
-
-pub const IgnoredSpan = union(enum) {
-    region: struct {
-        row_start: usize,
-        row_end: usize,
-    },
-    line: usize,
-};
