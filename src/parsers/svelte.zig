@@ -48,9 +48,10 @@ fn getHoverInfoAtPosition(
     column: u32,
     row: u32,
 ) ?HoverInfo {
-    _ = code; // autofix
-    _ = column; // autofix
-    _ = row; // autofix
-
-    return null;
+    return html.getHoverInfoFromHtmlAtPosition(
+        code,
+        column,
+        row,
+        lang_svelte,
+    );
 }

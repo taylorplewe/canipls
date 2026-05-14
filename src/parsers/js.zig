@@ -117,7 +117,7 @@ fn parse(
             if (std.mem.eql(u8, comment, "canipls-ignore-file")) {
                 return &.{};
             } else if (std.mem.eql(u8, comment, "canipls-ignore")) {
-                ignored_spans.append(allocator, .{ .line = comment_node.startPoint().row }) catch return &.{};
+                ignored_spans.append(allocator, .{ .row = comment_node.startPoint().row }) catch return &.{};
             } else if (std.mem.eql(u8, comment, "canipls-ignore-start")) {
                 if (current_ignore_region_start_row) |row_start| {
                     diagnostics.append(allocator, .{
@@ -162,7 +162,7 @@ fn parse(
             // contained in an ignore span?
             for (ignored_spans.items) |span| {
                 switch (span) {
-                    .line => |ignored_row| {
+                    .row => |ignored_row| {
                         if (identifier_node.startPoint().row == ignored_row) continue :idents_loop;
                     },
                     .region => |ignored_region| {
@@ -194,7 +194,7 @@ fn parse(
             // contained in an ignore span?
             for (ignored_spans.items) |span| {
                 switch (span) {
-                    .line => |ignored_row| {
+                    .row => |ignored_row| {
                         if (tag_node.startPoint().row == ignored_row) continue :jsx_loop;
                     },
                     .region => |ignored_region| {
@@ -343,21 +343,6 @@ fn getHoverInfoAtPosition(
                 };
             }
         }
-
-        //     for (match.captures[1..]) |capture| {
-        //         const attr_node = capture.node;
-        //         const attr_name = code[attr_node.startByte()..attr_node.endByte()];
-
-        //         const maybe_attr_support_percentage = Parser.getSupportPercentageForIdentifierFromBin(attr_name, html_attributes_bin);
-        //         if (maybe_attr_support_percentage) |percentage| {
-        //             return HoverInfo{
-        //                 .caniuse_id = "html_elements_geolocation", // TEMP
-        //                 .identifier = attr_name,
-        //                 .support_percentage = percentage,
-        //             };
-        //         }
-        //     }
-        // }
     }
 
     return null;

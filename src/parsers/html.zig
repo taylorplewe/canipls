@@ -113,7 +113,7 @@ pub fn parseHtmlAndReturnDiagnostics(
             if (std.mem.eql(u8, comment, "canipls-ignore-file")) {
                 return &.{};
             } else if (std.mem.eql(u8, comment, "canipls-ignore")) {
-                ignored_spans.append(allocator, .{ .line = comment_node.startPoint().row }) catch return &.{};
+                ignored_spans.append(allocator, .{ .row = comment_node.startPoint().row }) catch return &.{};
             } else if (std.mem.eql(u8, comment, "canipls-ignore-start")) {
                 if (current_ignore_region_start_row) |row_start| {
                     diagnostics.append(allocator, .{
@@ -158,7 +158,7 @@ pub fn parseHtmlAndReturnDiagnostics(
             // contained in an ignore span?
             for (ignored_spans.items) |span| {
                 switch (span) {
-                    .line => |ignored_row| {
+                    .row => |ignored_row| {
                         if (tag_node.startPoint().row == ignored_row) continue :els_and_attrs_loop;
                     },
                     .region => |ignored_region| {
@@ -233,13 +233,11 @@ pub fn parseHtmlAndReturnDiagnostics(
     return diagnostics.items;
 }
 
-pub fn getHoverInfoFromHtmlAtPosition() ?HoverInfo {}
-
-/// TODO: most of this code is copy-pasted from the parse function (same goes for other parsers), abstract the code out somehow
-fn getHoverInfoAtPosition(
+pub fn getHoverInfoFromHtmlAtPosition(
     code: []const u8,
     column: u32,
     row: u32,
+    lang: *ts.Language,
 ) ?HoverInfo {
     const TAG_NAME_QUERY = "(tag_name) @tagname";
     const ATTR_QUERY = "(attribute_name) @attrname";
@@ -249,7 +247,7 @@ fn getHoverInfoAtPosition(
 
     const parser = ts.Parser.create();
     defer parser.destroy();
-    parser.setLanguage(lang_html) catch return null;
+    parser.setLanguage(lang) catch return null;
 
     const parse_res = parser.parseString(code, null);
     if (parse_res) |ast| {
@@ -258,13 +256,13 @@ fn getHoverInfoAtPosition(
         const node = ast.rootNode();
 
         var error_offset: u32 = 0;
-        const query_tags = ts.Query.create(lang_html, TAG_NAME_QUERY, &error_offset) catch return null;
+        const query_tags = ts.Query.create(lang, TAG_NAME_QUERY, &error_offset) catch return null;
         defer query_tags.destroy();
-        const query_attrs = ts.Query.create(lang_html, ATTR_QUERY, &error_offset) catch return null;
+        const query_attrs = ts.Query.create(lang, ATTR_QUERY, &error_offset) catch return null;
         defer query_attrs.destroy();
-        const query_style_blocks = ts.Query.create(lang_html, STYLE_BLOCKS, &error_offset) catch return null;
+        const query_style_blocks = ts.Query.create(lang, STYLE_BLOCKS, &error_offset) catch return null;
         defer query_style_blocks.destroy();
-        const query_script_blocks = ts.Query.create(lang_html, SCRIPT_BLOCKS, &error_offset) catch return null;
+        const query_script_blocks = ts.Query.create(lang, SCRIPT_BLOCKS, &error_offset) catch return null;
         defer query_script_blocks.destroy();
 
         var cursor = ts.QueryCursor.create();
@@ -331,4 +329,18 @@ fn getHoverInfoAtPosition(
     }
 
     return null;
+}
+
+/// TODO: most of this code is copy-pasted from the parse function (same goes for other parsers), abstract the code out somehow
+fn getHoverInfoAtPosition(
+    code: []const u8,
+    column: u32,
+    row: u32,
+) ?HoverInfo {
+    return getHoverInfoFromHtmlAtPosition(
+        code,
+        column,
+        row,
+        lang_html,
+    );
 }

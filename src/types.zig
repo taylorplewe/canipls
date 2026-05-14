@@ -14,5 +14,5 @@ pub const IgnoredSpan = union(enum) {
         row_start: usize,
         row_end: usize,
     },
-    line: usize,
+    row: usize,
 };

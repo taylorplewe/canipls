@@ -111,7 +111,7 @@ fn parse(
             if (std.mem.eql(u8, comment, "canipls-ignore-file")) {
                 return &.{};
             } else if (std.mem.eql(u8, comment, "canipls-ignore")) {
-                ignored_spans.append(allocator, .{ .line = comment_node.startPoint().row }) catch return &.{};
+                ignored_spans.append(allocator, .{ .row = comment_node.startPoint().row }) catch return &.{};
             } else if (std.mem.eql(u8, comment, "canipls-ignore-start")) {
                 if (current_ignore_region_start_row) |row_start| {
                     diagnostics.append(allocator, .{
@@ -156,7 +156,7 @@ fn parse(
             // contained in an ignore span?
             for (ignored_spans.items) |span| {
                 switch (span) {
-                    .line => |ignored_row| {
+                    .row => |ignored_row| {
                         if (prop_node.startPoint().row == ignored_row) continue :props_loop;
                     },
                     .region => |ignored_region| {
@@ -188,7 +188,7 @@ fn parse(
             // contained in an ignore span?
             for (ignored_spans.items) |span| {
                 switch (span) {
-                    .line => |ignored_row| {
+                    .row => |ignored_row| {
                         if (at_rule_node.startPoint().row == ignored_row) continue :at_rules_loop;
                     },
                     .region => |ignored_region| {
@@ -222,7 +222,7 @@ fn parse(
                 // contained in an ignore span?
                 for (ignored_spans.items) |span| {
                     switch (span) {
-                        .line => |ignored_row| {
+                        .row => |ignored_row| {
                             if (selector_node.startPoint().row == ignored_row) continue :selectors_loop;
                         },
                         .region => |ignored_region| {

@@ -88,9 +88,54 @@ fn getHoverInfoAtPosition(
     column: u32,
     row: u32,
 ) ?HoverInfo {
-    _ = code; // autofix
-    _ = column; // autofix
-    _ = row; // autofix
+    if (html.getHoverInfoFromHtmlAtPosition(
+        code,
+        column,
+        row,
+        lang_astro,
+    )) |hover_info| {
+        return hover_info;
+    }
+
+    const QUERY_FRONTMATTER_JS = "(frontmatter (frontmatter_js_block) @js)";
+
+    const parser = ts.Parser.create();
+    defer parser.destroy();
+    parser.setLanguage(lang_astro) catch return null;
+
+    const parse_res = parser.parseString(code, null);
+    if (parse_res) |ast| {
+        defer ast.destroy();
+
+        const node = ast.rootNode();
+
+        var error_offset: u32 = 0;
+        const query_frontmatter_js = ts.Query.create(lang_astro, QUERY_FRONTMATTER_JS, &error_offset) catch return null;
+        defer query_frontmatter_js.destroy();
+
+        const cursor = ts.QueryCursor.create();
+        defer cursor.destroy();
+
+        cursor.setPointRange(
+            .{ .column = column, .row = row },
+            .{ .column = column, .row = row },
+        ) catch return null;
+
+        // script (JS) blocks
+        cursor.exec(query_frontmatter_js, node);
+        while (cursor.nextMatch()) |match| {
+            const js_node = match.captures[0].node;
+            const js_code = code[js_node.startByte()..js_node.endByte()];
+
+            const js_row = row - js_node.startPoint().row;
+            const js_column = if (js_row == 0) column - js_node.startPoint().column else column;
+            return js.JavascriptParser().getHoverInfoAtPosition(
+                js_code,
+                js_column,
+                js_row,
+            );
+        }
+    }
 
     return null;
 }

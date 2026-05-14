@@ -161,8 +161,6 @@ pub fn @"textDocument/didChange"(
     temp_allocator: std.mem.Allocator,
     params: lsp.types.TextDocument.DidChangeParams,
 ) !void {
-    log.info("textDocument/didChange", .{});
-
     const new_src = try self.allocator.dupe(u8, params.contentChanges[0].text_document_content_change_whole_document.text);
 
     const document_get = self.files.getPtr(params.textDocument.uri);
