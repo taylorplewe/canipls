@@ -9,7 +9,8 @@ const HoverInfo = types.HoverInfo;
 const ElementKind = types.ElementKind;
 const IgnoredSpan = types.IgnoredSpan;
 const SymbolInfo = types.SymbolInfo;
-const InjectionInfo = types.InjectionInfo;
+const InjectionParseInfo = types.InjectionParseInfo;
+const InjectionHoverInfo = types.InjectionHoverInfo;
 
 const log = std.log.scoped(.canipls);
 
@@ -89,14 +90,16 @@ pub fn getSupportPercentageForIdentifierFromBin(
 }
 
 pub fn getDiagnosticsFromCode(
+    /// This should be the temporary allocator provided by the LSP handler function; the allocated memory is *NOT* freed in this code.
     allocator: std.mem.Allocator,
     lang: *ts.Language,
     code: []const u8,
     code_offset_column: u32,
     code_offset_row: u32,
+    /// A function used to extract the actual comment text from the whole comment syntax (e.g. remove leading "<!-- " and trailing " -->")
     comment_trim_fn: *const fn (in: []const u8) []const u8,
     symbols: []const SymbolInfo,
-    injections: []const InjectionInfo,
+    injections: []const InjectionParseInfo,
 ) []const lsp.types.Diagnostic {
     const QUERY_COMMENT = "(comment) @comment"; // this is the same for all 3 TS parsers; HTML, CSS and JS.
 
@@ -147,7 +150,10 @@ pub fn getDiagnosticsFromCode(
                             .start = .{ .character = comment_node.startPoint().column, .line = comment_node.startPoint().row },
                             .end = .{ .character = comment_node.endPoint().column, .line = comment_node.endPoint().row },
                         },
-                        .message = std.fmt.allocPrint(allocator, "This ignore-start shadows the one found on line {d}", .{row_start + 1}) catch "ERROR - could not call allocPrint()",
+                        .message = std.fmt.allocPrint(allocator, "This ignore-start shadows the one found on line {d}", .{row_start + 1}) catch |err| {
+                            log.err("could not call allocPrint() when appending comment diagnostic: {}", .{err});
+                            return diagnostics.items;
+                        },
                         .severity = .Warning,
                     }) catch return &.{};
                 } else {
@@ -167,7 +173,10 @@ pub fn getDiagnosticsFromCode(
                             .start = .{ .character = comment_node.startPoint().column, .line = comment_node.startPoint().row },
                             .end = .{ .character = comment_node.endPoint().column, .line = comment_node.endPoint().row },
                         },
-                        .message = std.fmt.allocPrint(allocator, "This ignore-end has no ignore-start pairing", .{}) catch "ERROR - could not call allocPrint()",
+                        .message = std.fmt.allocPrint(allocator, "This ignore-end has no ignore-start pairing", .{}) catch |err| {
+                            log.err("could not call allocPrint() when appending comment diagnostic: {}", .{err});
+                            return diagnostics.items;
+                        },
                         .severity = .Warning,
                     }) catch return &.{};
                 }
@@ -177,7 +186,7 @@ pub fn getDiagnosticsFromCode(
         for (symbols) |symbol_info| {
             const query = ts.Query.create(lang, symbol_info.ts_query_text, &error_offset) catch |err| {
                 log.err("could not create tree-sitter query: {}", .{err});
-                return &.{};
+                return diagnostics.items;
             };
             defer query.destroy();
 
@@ -208,7 +217,10 @@ pub fn getDiagnosticsFromCode(
                         percentage,
                         code_offset_column,
                         code_offset_row,
-                    )) catch return &.{};
+                    )) catch |err| {
+                        log.err("could not add diagnostic to `diagnostics` ArrayList: {}", .{err});
+                        return diagnostics.items;
+                    };
                 }
             }
         }
@@ -235,11 +247,90 @@ pub fn getDiagnosticsFromCode(
 
                 diagnostics.appendSlice(allocator, injection_diagnostics) catch |err| {
                     log.err("could not add injection diagnostics to `diagnostics` ArrayList: {}", .{err});
-                    return &.{};
+                    return diagnostics.items;
                 };
             }
         }
     }
 
     return diagnostics.items;
+}
+
+pub fn getHoverDocFromCodeAtPosition(
+    lang: *ts.Language,
+    code: []const u8,
+    column: u32,
+    row: u32,
+    symbols: []const SymbolInfo,
+    injections: []const InjectionHoverInfo,
+) ?HoverInfo {
+    const parser = ts.Parser.create();
+    defer parser.destroy();
+    parser.setLanguage(lang) catch return null;
+
+    const parse_res = parser.parseString(code, null);
+    if (parse_res) |ast| {
+        defer ast.destroy();
+
+        const root_node = ast.rootNode();
+
+        var error_offset: u32 = 0;
+
+        const cursor = ts.QueryCursor.create();
+        defer cursor.destroy();
+
+        cursor.setPointRange(
+            .{ .column = column, .row = row },
+            .{ .column = column, .row = row },
+        ) catch return null;
+
+        for (symbols) |symbol_info| {
+            const query = ts.Query.create(lang, symbol_info.ts_query_text, &error_offset) catch |err| {
+                log.err("could not create tree-sitter query: {}", .{err});
+                return null;
+            };
+            defer query.destroy();
+
+            cursor.exec(query, root_node);
+            while (cursor.nextMatch()) |match| {
+                const node = match.captures[0].node;
+                const name = code[node.startByte()..node.endByte()][symbol_info.name_trim_start..];
+
+                // look up this symbol in the appropriate support bin file
+                const maybe_support_percentage = getSupportPercentageForIdentifierFromBin(name, symbol_info.support_bin);
+                if (maybe_support_percentage) |percentage| {
+                    return HoverInfo{
+                        .caniuse_id = "html_elements_geolocation", // TEMP
+                        .identifier = name,
+                        .support_percentage = percentage,
+                    };
+                }
+            }
+        }
+
+        for (injections) |injection_info| {
+            const query = ts.Query.create(lang, injection_info.ts_query_text, &error_offset) catch |err| {
+                log.err("could not create tree-sitter query: {}", .{err});
+                return null;
+            };
+            defer query.destroy();
+
+            // injection languages inside this language
+            cursor.exec(query, root_node);
+            while (cursor.nextMatch()) |match| {
+                const injection_node = match.captures[0].node;
+                const injection_code = code[injection_node.startByte()..injection_node.endByte()];
+
+                const injection_row = row - injection_node.startPoint().row;
+                const injection_column = if (injection_row == 0) column - injection_node.startPoint().column else column;
+
+                return injection_info.injection_hover_fn(
+                    injection_code,
+                    injection_column,
+                    injection_row,
+                );
+            }
+        }
+    }
+    return null;
 }

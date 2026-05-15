@@ -55,7 +55,7 @@ fn parse(
         },
     };
 
-    const injections = [_]types.InjectionInfo{
+    const injections = [_]types.InjectionParseInfo{
         .{
             .injection_parse_fn = js.JavascriptParser().parse,
             .ts_query_text = QUERY_FRONTMATTER_JS,

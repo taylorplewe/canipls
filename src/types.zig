@@ -46,7 +46,7 @@ pub const SymbolInfo = struct {
     element_kind: ElementKind,
     name_trim_start: usize = 0,
 };
-pub const InjectionInfo = struct {
+pub const InjectionParseInfo = struct {
     ts_query_text: []const u8,
     injection_parse_fn: *const fn (
         allocator: std.mem.Allocator,
@@ -54,4 +54,12 @@ pub const InjectionInfo = struct {
         code_offset_column: u32,
         code_offset_row: u32,
     ) []const lsp.types.Diagnostic,
+};
+pub const InjectionHoverInfo = struct {
+    ts_query_text: []const u8,
+    injection_hover_fn: *const fn (
+        code: []const u8,
+        code_offset_column: u32,
+        code_offset_row: u32,
+    ) ?HoverInfo,
 };
