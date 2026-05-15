@@ -6,14 +6,12 @@ const types = @import("../types.zig");
 const HoverInfo = types.HoverInfo;
 const IgnoredSpan = types.IgnoredSpan;
 const Parser = @import("Parser.zig");
+const bins = @import("bins.zig");
 
 const log = std.log.scoped(.canipls);
 
 extern fn tree_sitter_css() callconv(.c) *ts.Language;
 var lang_css: *ts.Language = undefined;
-const css_at_rules_bin: []const u8 = @embedFile("css_at_rules.bin"); // TEMP
-const css_selectors_bin: []const u8 = @embedFile("css_selectors.bin"); // TEMP
-const css_properties_bin: []const u8 = @embedFile("css_props.bin"); // TEMP
 
 pub fn CssParser() Parser {
     return .{
@@ -44,23 +42,23 @@ fn parse(
     const symbols = [_]types.SymbolInfo{
         .{
             .element_kind = .CssProp,
-            .support_bin = css_properties_bin,
+            .support_bin = bins.bin_map.get(.CssProps).?,
             .ts_query_text = QUERY_PROPS,
         },
         .{
             .element_kind = .CssAtRule,
-            .support_bin = css_at_rules_bin,
+            .support_bin = bins.bin_map.get(.CssAtRules).?,
             .ts_query_text = QUERY_AT_RULES,
             .name_trim_start = 1,
         },
         .{
             .element_kind = .CssSelector,
-            .support_bin = css_selectors_bin,
+            .support_bin = bins.bin_map.get(.CssSelectors).?,
             .ts_query_text = QUERY_PSEUDO_CLASS_SELECTORS,
         },
         .{
             .element_kind = .CssSelector,
-            .support_bin = css_selectors_bin,
+            .support_bin = bins.bin_map.get(.CssSelectors).?,
             .ts_query_text = QUERY_PSEUDO_ELEMENT_SELECTORS,
         },
     };
@@ -90,23 +88,23 @@ fn getHoverInfoAtPosition(
     const symbols = [_]types.SymbolInfo{
         .{
             .element_kind = .CssProp,
-            .support_bin = css_properties_bin,
+            .support_bin = bins.bin_map.get(.CssProps).?,
             .ts_query_text = QUERY_PROPS,
         },
         .{
             .element_kind = .CssAtRule,
-            .support_bin = css_at_rules_bin,
+            .support_bin = bins.bin_map.get(.CssAtRules).?,
             .ts_query_text = QUERY_AT_RULES,
             .name_trim_start = 1,
         },
         .{
             .element_kind = .CssSelector,
-            .support_bin = css_selectors_bin,
+            .support_bin = bins.bin_map.get(.CssSelectors).?,
             .ts_query_text = QUERY_PSEUDO_CLASS_SELECTORS,
         },
         .{
             .element_kind = .CssSelector,
-            .support_bin = css_selectors_bin,
+            .support_bin = bins.bin_map.get(.CssSelectors).?,
             .ts_query_text = QUERY_PSEUDO_ELEMENT_SELECTORS,
         },
     };

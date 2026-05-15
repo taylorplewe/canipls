@@ -8,13 +8,12 @@ const IgnoredSpan = types.IgnoredSpan;
 const Parser = @import("Parser.zig");
 const css = @import("css.zig");
 const js = @import("js.zig");
+const bins = @import("bins.zig");
 
 const log = std.log.scoped(.canipls);
 
 extern fn tree_sitter_html() callconv(.c) *ts.Language;
 var lang_html: *ts.Language = undefined;
-pub const html_tags_bin: []const u8 = @embedFile("html_tags.bin"); // TEMP
-pub const html_attributes_bin: []const u8 = @embedFile("html_attributes.bin"); // TEMP
 
 pub fn HtmlParser() Parser {
     return .{
@@ -61,12 +60,12 @@ pub fn parseHtmlAndReturnDiagnostics(
     const symbols = [_]types.SymbolInfo{
         .{
             .element_kind = .HtmlAttribute,
-            .support_bin = html_attributes_bin,
+            .support_bin = bins.bin_map.get(.HtmlAttributes).?,
             .ts_query_text = QUERY_ATTRS,
         },
         .{
             .element_kind = .HtmlElement,
-            .support_bin = html_tags_bin,
+            .support_bin = bins.bin_map.get(.HtmlTags).?,
             .ts_query_text = QUERY_TAGS,
         },
     };
@@ -120,12 +119,12 @@ pub fn getHoverInfoFromHtmlAtPosition(
     const symbols = [_]types.SymbolInfo{
         .{
             .element_kind = .HtmlAttribute,
-            .support_bin = html_attributes_bin,
+            .support_bin = bins.bin_map.get(.HtmlAttributes).?,
             .ts_query_text = QUERY_ATTRS,
         },
         .{
             .element_kind = .HtmlElement,
-            .support_bin = html_tags_bin,
+            .support_bin = bins.bin_map.get(.HtmlTags).?,
             .ts_query_text = QUERY_TAGS,
         },
     };

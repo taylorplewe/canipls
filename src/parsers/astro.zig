@@ -8,6 +8,7 @@ const Parser = @import("Parser.zig");
 const html = @import("html.zig");
 const js = @import("js.zig");
 const css = @import("css.zig");
+const bins = @import("bins.zig");
 
 const log = std.log.scoped(.canipls);
 
@@ -44,12 +45,12 @@ fn parse(
     const symbols = [_]types.SymbolInfo{
         .{
             .element_kind = .HtmlAttribute,
-            .support_bin = html.html_attributes_bin,
+            .support_bin = bins.bin_map.get(.HtmlAttributes).?,
             .ts_query_text = QUERY_ATTRS,
         },
         .{
             .element_kind = .HtmlElement,
-            .support_bin = html.html_tags_bin,
+            .support_bin = bins.bin_map.get(.HtmlTags).?,
             .ts_query_text = QUERY_TAGS,
         },
     };
@@ -95,12 +96,12 @@ fn getHoverInfoAtPosition(
     const symbols = [_]types.SymbolInfo{
         .{
             .element_kind = .HtmlAttribute,
-            .support_bin = html.html_attributes_bin,
+            .support_bin = bins.bin_map.get(.HtmlAttributes).?,
             .ts_query_text = QUERY_ATTRS,
         },
         .{
             .element_kind = .HtmlElement,
-            .support_bin = html.html_tags_bin,
+            .support_bin = bins.bin_map.get(.HtmlTags).?,
             .ts_query_text = QUERY_TAGS,
         },
     };

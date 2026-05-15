@@ -7,14 +7,15 @@ const HoverInfo = types.HoverInfo;
 const IgnoredSpan = types.IgnoredSpan;
 const Parser = @import("Parser.zig");
 const html = @import("html.zig");
+const bins = @import("bins.zig");
 
 const log = std.log.scoped(.canipls);
 
 extern fn tree_sitter_javascript() callconv(.c) *ts.Language;
 var lang_javascript: *ts.Language = undefined;
-const js_identifiers_bin: []const u8 = @embedFile("js_identifiers.bin"); // TEMP
-const html_tags_bin: []const u8 = @embedFile("html_tags.bin"); // TEMP
-const html_attributes_bin: []const u8 = @embedFile("html_attributes.bin"); // TEMP
+// const js_identifiers_bin: []const u8 = @embedFile("js_identifiers.bin"); // TEMP
+// const html_tags_bin: []const u8 = @embedFile("html_tags.bin"); // TEMP
+// const html_attributes_bin: []const u8 = @embedFile("html_attributes.bin"); // TEMP
 
 pub fn JavascriptParser() Parser {
     return .{
@@ -44,17 +45,17 @@ fn parse(
     const symbols = [_]types.SymbolInfo{
         .{
             .element_kind = .JsApi,
-            .support_bin = js_identifiers_bin,
+            .support_bin = bins.bin_map.get(.JsIdentifiers).?,
             .ts_query_text = QUERY_IDENTIFIERS,
         },
         .{
             .element_kind = .HtmlElement,
-            .support_bin = html.html_tags_bin,
+            .support_bin = bins.bin_map.get(.HtmlTags).?,
             .ts_query_text = QUERY_JSX_TAGS,
         },
         .{
             .element_kind = .HtmlAttribute,
-            .support_bin = html.html_attributes_bin,
+            .support_bin = bins.bin_map.get(.HtmlAttributes).?,
             .ts_query_text = QUERY_JSX_ATTRS,
         },
     };
@@ -77,23 +78,23 @@ fn getHoverInfoAtPosition(
     row: u32,
 ) ?HoverInfo {
     const QUERY_IDENTIFIERS = "(identifier) @name";
-    const QUERY_JSX_TAGS = "(jsx_opening_element (identifier) @tagname)";
+    const QUERY_JSX_TAGS = "(jsx_opening_element (identifier) @tagname)"; // TODO: also look for closing elements
     const QUERY_JSX_ATTRS = "(jsx_attribute (property_identifier) @attrname)";
 
     const symbols = [_]types.SymbolInfo{
         .{
             .element_kind = .JsApi,
-            .support_bin = js_identifiers_bin,
+            .support_bin = bins.bin_map.get(.JsIdentifiers).?,
             .ts_query_text = QUERY_IDENTIFIERS,
         },
         .{
             .element_kind = .HtmlElement,
-            .support_bin = html.html_tags_bin,
+            .support_bin = bins.bin_map.get(.HtmlTags).?,
             .ts_query_text = QUERY_JSX_TAGS,
         },
         .{
             .element_kind = .HtmlAttribute,
-            .support_bin = html.html_attributes_bin,
+            .support_bin = bins.bin_map.get(.HtmlAttributes).?,
             .ts_query_text = QUERY_JSX_ATTRS,
         },
     };
