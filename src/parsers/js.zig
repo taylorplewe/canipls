@@ -25,8 +25,7 @@ pub fn JavascriptParser() Parser {
     };
 }
 
-fn init(io: std.Io) void {
-    _ = io; // autofix
+fn init() void {
     lang_javascript = tree_sitter_javascript();
 }
 fn deinit() void {

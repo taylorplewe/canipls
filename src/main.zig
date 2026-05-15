@@ -4,6 +4,7 @@ const log = std.log.scoped(.canipls);
 
 const Handler = @import("Handler.zig");
 const lsp_to_ts = @import("lsp_to_ts.zig");
+const bins = @import("parsers/bins.zig");
 
 pub fn main(init: std.process.Init) !void {
     var read_buf: [2048]u8 = undefined;
@@ -17,7 +18,14 @@ pub fn main(init: std.process.Init) !void {
     );
     defer handler.deinit();
 
-    lsp_to_ts.init(init.io);
+    try bins.init(
+        init.gpa,
+        init.io,
+        init.environ_map,
+    );
+    defer bins.deinit(init.gpa);
+
+    lsp_to_ts.init();
     defer lsp_to_ts.deinit();
 
     std.log.info("running caniuse-ls server...", .{});

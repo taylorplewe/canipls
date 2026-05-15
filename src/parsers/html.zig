@@ -25,8 +25,7 @@ pub fn HtmlParser() Parser {
     };
 }
 
-fn init(io: std.Io) void {
-    _ = io; // autofix
+fn init() void {
     lang_html = tree_sitter_html();
 }
 fn deinit() void {

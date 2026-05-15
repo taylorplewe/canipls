@@ -24,8 +24,7 @@ pub fn CssParser() Parser {
     };
 }
 
-fn init(io: std.Io) void {
-    _ = io; // autofix
+fn init() void {
     lang_css = tree_sitter_css();
 }
 fn deinit() void {

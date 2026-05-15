@@ -22,9 +22,9 @@ const parsers: std.StaticStringMap(Parser) = .initComptime(.{
     .{ "astro", astro_parser.AstroParser() },
 });
 
-pub fn init(io: std.Io) void {
+pub fn init() void {
     for (parsers.values()) |parser| {
-        parser.init(io);
+        parser.init();
     }
 }
 

@@ -17,7 +17,7 @@ const log = std.log.scoped(.canipls);
 const BIN_FILE_STRING_WIDTH = 32;
 const THRESHOLD = 90.0; // TEMP
 
-init: *const fn (io: std.Io) void,
+init: *const fn () void,
 deinit: *const fn () void,
 parse: *const fn (
     allocator: std.mem.Allocator,
