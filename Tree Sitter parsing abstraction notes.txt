@@ -26,6 +26,8 @@ COMMON CODE:
         const root_node = ast.rootNode();
 
 (instantiating query's is different)
+(but should be easy given a list of query strings)
+(actually what if each parser just instantiates their own cursor and queries in their init() functions?)
 
         const cursor = ts.QueryCursor.create();
         defer cursor.destroy();
@@ -116,7 +118,7 @@ COMMON CODE:
 HOVER DOC SAME CODE:
 (literally the exact same as parse code except for:)
 
-    // this comes right after instantiating the cursor
+    // this comes rightafter instantiating the cursor
     cursor.setPointRange(
         .{ .column = column, .row = row },
         .{ .column = column, .row = row },

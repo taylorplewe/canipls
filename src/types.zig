@@ -1,3 +1,26 @@
+const std = @import("std");
+const lsp = @import("lsp");
+
+pub const ElementKind = enum {
+    HtmlElement,
+    HtmlAttribute,
+    CssProp,
+    CssAtRule,
+    CssSelector,
+    JsApi,
+
+    pub fn getWord(self: ElementKind) []const u8 {
+        return switch (self) {
+            .HtmlElement => "element",
+            .HtmlAttribute => "attribute",
+            .CssProp => "property",
+            .CssAtRule => "at-rule",
+            .CssSelector => "selector",
+            .JsApi => "API",
+        };
+    }
+};
+
 /// Internal type representing all necessary information to build an LSP `Hover` instance
 pub const HoverInfo = struct {
     /// The actual textual representation of the hovered symbol
@@ -15,4 +38,19 @@ pub const IgnoredSpan = union(enum) {
         row_end: usize,
     },
     row: usize,
+};
+
+pub const SymbolInfo = struct {
+    ts_query_text: []const u8,
+    support_bin: []const u8,
+    element_kind: ElementKind,
+};
+pub const InjectionInfo = struct {
+    ts_query_text: []const u8,
+    injection_parse_fn: *const fn (
+        allocator: std.mem.Allocator,
+        code: []const u8,
+        code_offset_column: u32,
+        code_offset_row: u32,
+    ) []const lsp.types.Diagnostic,
 };

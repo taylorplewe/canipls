@@ -13,8 +13,8 @@ const log = std.log.scoped(.canipls);
 
 extern fn tree_sitter_html() callconv(.c) *ts.Language;
 var lang_html: *ts.Language = undefined;
-const html_tags_bin: []const u8 = @embedFile("html_tags.bin"); // TEMP
-const html_attributes_bin: []const u8 = @embedFile("html_attributes.bin"); // TEMP
+pub const html_tags_bin: []const u8 = @embedFile("html_tags.bin"); // TEMP
+pub const html_attributes_bin: []const u8 = @embedFile("html_attributes.bin"); // TEMP
 
 pub fn HtmlParser() Parser {
     return .{
@@ -54,183 +54,57 @@ pub fn parseHtmlAndReturnDiagnostics(
     start_row: u32,
     lang: *ts.Language,
 ) []const lsp.types.Diagnostic {
-    const START_TAG_NAME_AND_ATTRS_QUERY =
-        \\(start_tag
-        \\  (tag_name) @tagname
-        \\  (attribute
-        \\    (attribute_name) @attrname
-        \\  )*
-        \\)
-    ;
-    const STYLE_BLOCKS = "(style_element (raw_text) @css)";
-    const SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
-    const QUERY_COMMENT = "(comment) @comment";
+    const QUERY_TAGS = "(start_tag (tag_name) @tagname)";
+    const QUERY_ATTRS = "(attribute_name) @attrname";
+    const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
+    const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
 
-    const parser = ts.Parser.create();
-    defer parser.destroy();
-    parser.setLanguage(lang) catch return &.{};
+    const symbols = [_]types.SymbolInfo{
+        .{
+            .element_kind = .HtmlAttribute,
+            .support_bin = html_attributes_bin,
+            .ts_query_text = QUERY_ATTRS,
+        },
+        .{
+            .element_kind = .HtmlElement,
+            .support_bin = html_tags_bin,
+            .ts_query_text = QUERY_TAGS,
+        },
+    };
 
-    var diagnostics: std.ArrayList(lsp.types.Diagnostic) = .empty;
+    const injections = [_]types.InjectionInfo{
+        .{
+            .injection_parse_fn = js.JavascriptParser().parse,
+            .ts_query_text = QUERY_SCRIPT_BLOCKS,
+        },
+        .{
+            .injection_parse_fn = css.CssParser().parse,
+            .ts_query_text = QUERY_STYLE_BLOCKS,
+        },
+    };
 
-    const parse_res = parser.parseString(code, null);
-    if (parse_res) |ast| {
-        defer ast.destroy();
+    return Parser.getDiagnosticsFromCode(
+        allocator,
+        lang,
+        code,
+        start_column,
+        start_row,
+        trimComment,
+        &symbols,
+        &injections,
+    );
+}
 
-        const root_node = ast.rootNode();
-
-        var error_offset: u32 = 0;
-        const query_comments = ts.Query.create(lang, QUERY_COMMENT, &error_offset) catch return &.{};
-        defer query_comments.destroy();
-        const query_tags_and_attrs = ts.Query.create(lang, START_TAG_NAME_AND_ATTRS_QUERY, &error_offset) catch return &.{};
-        defer query_tags_and_attrs.destroy();
-        const query_style_blocks = ts.Query.create(lang, STYLE_BLOCKS, &error_offset) catch return &.{};
-        defer query_style_blocks.destroy();
-        const query_script_blocks = ts.Query.create(lang, SCRIPT_BLOCKS, &error_offset) catch return &.{};
-        defer query_script_blocks.destroy();
-
-        const cursor = ts.QueryCursor.create();
-        defer cursor.destroy();
-
-        // comments (look for canipls-ignore)
-        var ignored_spans: std.ArrayList(IgnoredSpan) = .empty;
-        defer ignored_spans.deinit(allocator);
-        var current_ignore_region_start_row: ?usize = null;
-        cursor.exec(query_comments, root_node);
-        while (cursor.nextMatch()) |match| {
-            const comment_node = match.captures[0].node;
-            const comment_raw = code[comment_node.startByte()..comment_node.endByte()];
-
-            const comment = std.mem.trim(
-                u8,
-                std.mem.cutPrefix(
-                    u8,
-                    std.mem.cutSuffix(u8, comment_raw, "-->").?,
-                    "<!--",
-                ).?,
-                " \t",
-            );
-
-            if (std.mem.eql(u8, comment, "canipls-ignore-file")) {
-                return &.{};
-            } else if (std.mem.eql(u8, comment, "canipls-ignore")) {
-                ignored_spans.append(allocator, .{ .row = comment_node.startPoint().row }) catch return &.{};
-            } else if (std.mem.eql(u8, comment, "canipls-ignore-start")) {
-                if (current_ignore_region_start_row) |row_start| {
-                    diagnostics.append(allocator, .{
-                        .range = .{
-                            .start = .{ .character = comment_node.startPoint().column, .line = comment_node.startPoint().row },
-                            .end = .{ .character = comment_node.endPoint().column, .line = comment_node.endPoint().row },
-                        },
-                        .message = std.fmt.allocPrint(allocator, "This ignore-start shadows the one found on line {d}", .{row_start + 1}) catch "ERROR - could not call allocPrint()",
-                        .severity = .Warning,
-                    }) catch return &.{};
-                } else {
-                    current_ignore_region_start_row = comment_node.startPoint().row;
-                }
-            } else if (std.mem.eql(u8, comment, "canipls-ignore-end")) {
-                if (current_ignore_region_start_row) |row_start| {
-                    ignored_spans.append(
-                        allocator,
-                        .{
-                            .region = .{ .row_start = row_start, .row_end = comment_node.startPoint().row },
-                        },
-                    ) catch return &.{};
-                } else {
-                    diagnostics.append(allocator, .{
-                        .range = .{
-                            .start = .{ .character = comment_node.startPoint().column, .line = comment_node.startPoint().row },
-                            .end = .{ .character = comment_node.endPoint().column, .line = comment_node.endPoint().row },
-                        },
-                        .message = std.fmt.allocPrint(allocator, "This ignore-end has no ignore-start pairing", .{}) catch "ERROR - could not call allocPrint()",
-                        .severity = .Warning,
-                    }) catch return &.{};
-                }
-            }
-        }
-
-        // elements and attributes
-        cursor.exec(query_tags_and_attrs, root_node);
-        els_and_attrs_loop: while (cursor.nextMatch()) |match| {
-            const tag_node = match.captures[0].node;
-            const tag_name = code[tag_node.startByte()..tag_node.endByte()];
-
-            // TODO extract this ignore check out somehow - code is not DRY
-            // contained in an ignore span?
-            for (ignored_spans.items) |span| {
-                switch (span) {
-                    .row => |ignored_row| {
-                        if (tag_node.startPoint().row == ignored_row) continue :els_and_attrs_loop;
-                    },
-                    .region => |ignored_region| {
-                        if (tag_node.startPoint().row > ignored_region.row_start and tag_node.startPoint().row < ignored_region.row_end) continue :els_and_attrs_loop;
-                    },
-                }
-            }
-
-            const maybe_tag_support_percentage = Parser.getSupportPercentageForIdentifierFromBin(tag_name, html_tags_bin);
-            if (maybe_tag_support_percentage) |percentage| {
-                if (percentage < 90.0) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
-                    allocator,
-                    &tag_node,
-                    .HtmlElement,
-                    percentage,
-                    start_column,
-                    start_row,
-                )) catch return &.{};
-            }
-
-            for (match.captures[1..]) |capture| {
-                const attr_node = capture.node;
-                const attr_name = code[attr_node.startByte()..attr_node.endByte()];
-
-                // NOTE: no ignore check needed since comments could not appear alongside individual attributes
-
-                const maybe_attr_support_percentage = Parser.getSupportPercentageForIdentifierFromBin(attr_name, html_attributes_bin);
-                if (maybe_attr_support_percentage) |percentage| {
-                    if (percentage < 90.0) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
-                        allocator,
-                        &attr_node,
-                        .HtmlAttribute,
-                        percentage,
-                        start_column,
-                        start_row,
-                    )) catch return &.{};
-                }
-            }
-        }
-
-        // style (CSS) blocks
-        cursor.exec(query_style_blocks, root_node);
-        while (cursor.nextMatch()) |match| {
-            const css_node = match.captures[0].node;
-            const css_code = code[css_node.startByte()..css_node.endByte()];
-
-            const css_diagnostics = css.CssParser().parse(
-                allocator,
-                css_code,
-                css_node.startPoint().column,
-                css_node.startPoint().row,
-            );
-            diagnostics.appendSlice(allocator, css_diagnostics) catch return &.{};
-        }
-
-        // script (JS) blocks
-        cursor.exec(query_script_blocks, root_node);
-        while (cursor.nextMatch()) |match| {
-            const js_node = match.captures[0].node;
-            const js_code = code[js_node.startByte()..js_node.endByte()];
-
-            const js_diagnostics = js.JavascriptParser().parse(
-                allocator,
-                js_code,
-                js_node.startPoint().column,
-                js_node.startPoint().row,
-            );
-            diagnostics.appendSlice(allocator, js_diagnostics) catch return &.{};
-        }
-    }
-
-    return diagnostics.items;
+pub fn trimComment(in: []const u8) []const u8 {
+    return std.mem.trim(
+        u8,
+        std.mem.cutPrefix(
+            u8,
+            std.mem.cutSuffix(u8, in, "-->").?,
+            "<!--",
+        ).?,
+        " \t",
+    );
 }
 
 pub fn getHoverInfoFromHtmlAtPosition(
