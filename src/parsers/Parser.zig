@@ -138,6 +138,8 @@ pub fn getDiagnosticsFromCode(
                 return &.{};
             } else if (std.mem.eql(u8, comment, "canipls-ignore")) {
                 ignored_spans.append(allocator, .{ .row = comment_node.startPoint().row }) catch return &.{};
+            } else if (std.mem.eql(u8, comment, "canipls-ignore-nextline")) {
+                ignored_spans.append(allocator, .{ .row = comment_node.startPoint().row + 1 }) catch return &.{};
             } else if (std.mem.eql(u8, comment, "canipls-ignore-start")) {
                 if (current_ignore_region_start_row) |row_start| {
                     diagnostics.append(allocator, .{
@@ -241,9 +243,3 @@ pub fn getDiagnosticsFromCode(
 
     return diagnostics.items;
 }
-// - *ts.Language
-// - list of *ts.Query's
-// - list of bin files per query
-// - list of of element kind per query
-// - comment trim callback
-// - some way of knowing whether to chop off the first character of at-rules (@)
