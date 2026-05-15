@@ -44,6 +44,7 @@ pub const SymbolInfo = struct {
     ts_query_text: []const u8,
     support_bin: []const u8,
     element_kind: ElementKind,
+    name_trim_start: usize = 0,
 };
 pub const InjectionInfo = struct {
     ts_query_text: []const u8,

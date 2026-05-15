@@ -182,7 +182,7 @@ pub fn getDiagnosticsFromCode(
             cursor.exec(query, root_node);
             match_loop: while (cursor.nextMatch()) |match| {
                 const node = match.captures[0].node;
-                const name = code[node.startByte()..node.endByte()];
+                const name = code[node.startByte()..node.endByte()][symbol_info.name_trim_start..];
 
                 // contained in an ignore span? if so, skip
                 for (ignored_spans.items) |span| {
