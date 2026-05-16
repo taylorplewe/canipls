@@ -322,6 +322,8 @@ pub fn getHoverDocFromCodeAtPosition(
                 const injection_code = code[injection_node.startByte()..injection_node.endByte()];
 
                 const injection_row = row - injection_node.startPoint().row;
+                if (injection_row == 0 and column < injection_node.startPoint().column)
+                    continue;
                 const injection_column = if (injection_row == 0) column - injection_node.startPoint().column else column;
 
                 return injection_info.injection_hover_fn(
