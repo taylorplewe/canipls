@@ -151,8 +151,6 @@ pub fn @"textDocument/didOpen"(
         params.textDocument.uri,
         doc,
     );
-
-    self.printDocuments();
 }
 
 /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didChange
@@ -184,8 +182,6 @@ pub fn @"textDocument/didClose"(
     log.info("textDocument/didClose", .{});
 
     self.removeDocument(params.textDocument.uri);
-
-    self.printDocuments();
 }
 
 pub fn @"textDocument/hover"(

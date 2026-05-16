@@ -34,7 +34,7 @@ pub fn build(b: *std.Build) void {
     exe_mod.addCSourceFile(.{ .file = tree_sitter_astro.path("src/parser.c") });
 
     const exe = b.addExecutable(.{
-        .name = "caniuse-ls",
+        .name = "canipls",
         .root_module = exe_mod,
     });
     b.installArtifact(exe);

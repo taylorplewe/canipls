@@ -45,7 +45,6 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, environ_map: *std.process.
         // luckily this string isn't very long so it is essentially inconsequential
         user_local_path = try allocator.dupe(u8, environ_map.get("LOCALAPPDATA") orelse return InitBinsError.NoLocalAppDataEnv);
     } else {
-        // TODO: test this on raspberry pi
         const home_path = environ_map.get("HOME") orelse return InitBinsError.NoHomeEnv;
         user_local_path = try std.fs.path.join(allocator, &.{ home_path, ".cache" });
     }
