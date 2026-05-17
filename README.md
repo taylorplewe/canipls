@@ -115,11 +115,23 @@ It is possible to opt out of canipls warnings for specific lines of code. This i
 
 | comment text | function |
 | - | - |
-| `canipls-ignore' | Ignore the line this comment is found on |
-| `canipls-ignore-nextline' | Ignore the line following the one this comment is found on |
-| `canipls-ignore-file' | Ignore the whole file if this comment is found anywhere therein |
-| `canipls-ignore-start' | Start ignoring from this line |
-| `canipls-ignore-end' | Stop ignoring after this line |
+| `canipls-ignore` | Ignore the line this comment is found on |
+| `canipls-ignore-nextline` | Ignore the line following the one this comment is found on |
+| `canipls-ignore-file` | Ignore the whole file if this comment is found anywhere therein |
+| `canipls-ignore-start` | Start ignoring from this line |
+| `canipls-ignore-end` | Stop ignoring after this line |
+
+#### Examples
+```css
+/* canipls-ignore-nextline */
+@starting-style {
+    /* ... */
+}
+```
+
+```javascript
+const now = Temporal.Now.instant(); // canipls-ignore
+```
 
 ## Config
 `canipls` will search the following places for configuration options, in order of precedence:
