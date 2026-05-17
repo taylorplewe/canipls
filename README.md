@@ -13,8 +13,8 @@ Implements the following features of Microsoft's [Language Server Protocol](http
 `canipls` will search the following places for configuration options, in order of precedence:
 1. a file called `.canipls.cfg` in the current project's root directory
 2. a file called `canipls.cfg` in the user's global app config directory
-  - on Windows, this is found at `%HOME%/AppData/Roaming/canipls/`
-  - on macOS and Linux, this is found at `~/.config/canipls/`
+    - on Windows, this is found at `%HOME%/AppData/Roaming/canipls/`
+    - on macOS and Linux, this is found at `~/.config/canipls/`
 3. use the default values (see below table)
 
 The following configuration options are available:
