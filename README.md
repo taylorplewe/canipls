@@ -11,9 +11,33 @@ Implements the following features of Microsoft's [Language Server Protocol](http
 
 ## Usage
 Follow the instructions for getting canipls up and running in your editor:
-<details hidden>
-    
-</details
+<details>
+<summary>VS Code</summary>
+
+Download the canipls extension from the marketplace or from within VS Code.
+TODO: marketplace link needed here
+
+[`canipls-vscode` extension source code](https://github.com/taylorplewe/canipls-vscode)
+</details>
+
+<details>
+<summary>JetBrains IDEs</summary>
+
+Download the canipls extension from the marketplace or from within JetBrains WebStorm or Rider.
+
+TODO: marketplace link needed here
+
+TODO: repo link needed here
+</details>
+
+<details>
+<summary>Zed</summary>
+
+Download the canipls extension from the marketplace or from within Zed.
+TODO: marketplace link needed here
+
+[`canipls-zed` extension source code](https://github.com/taylorplewe/canipls-zed)
+</details>
 
 ## Config
 `canipls` will search the following places for configuration options, in order of precedence:
