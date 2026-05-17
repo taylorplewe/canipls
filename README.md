@@ -9,6 +9,15 @@ Implements the following features of Microsoft's [Language Server Protocol](http
 - **diagnostics** - shows warnings on features whose global support percentage falls below the user-defined desired support threshold (or the default, if none is specified.)
 - **hover** - hover over any native HTML element, global attribute, CSS at-rule, property, psuedo-selector, JavaScript API or buultin, to see its global support percentage.
 
+Supported file types:
+- HTML
+- CSS
+- JavaScript/Typescript
+- JSX/TSX
+- Vue
+- Svelte
+- Astro
+
 ## Usage
 Follow the instructions for getting canipls up and running in your editor:
 <details>
