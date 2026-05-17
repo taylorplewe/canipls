@@ -110,6 +110,17 @@ TODO: marketplace link needed here
     ```
 </details>
 
+### Ignoring lines
+It is possible to opt out of canipls warnings for specific lines of code. This is done via various magic comments:
+
+| comment text | function |
+| - | - |
+| `canipls-ignore' | Ignore the line this comment is found on |
+| `canipls-ignore-nextline' | Ignore the line following the one this comment is found on |
+| `canipls-ignore-file' | Ignore the whole file if this comment is found anywhere therein |
+| `canipls-ignore-start' | Start ignoring from this line |
+| `canipls-ignore-end' | Stop ignoring after this line |
+
 ## Config
 `canipls` will search the following places for configuration options, in order of precedence:
 1. a file called `.canipls.cfg` in the current project's root directory
