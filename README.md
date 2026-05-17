@@ -55,7 +55,21 @@ TODO: marketplace link needed here
 2. (optional) Add the executable obtained in step 1 to your PATH.
 3. Add the following to your `init.lua`:
     ```lua
-    -- TODO actual setup here
+    vim.lsp.config('canipls', {
+        cmd = { 'canipls', '--stdio' },
+        filetypes = {
+            -- include as many of the following languages as you need:
+            'html',
+            'css',
+            'javascript',
+            'typescript',
+            'javascriptreact',
+            'typescriptreact',
+            'vue',
+            'svelte',
+            'astro',
+        },
+    })
     vim.lsp.enable('canipls')
     ```
 </details>
