@@ -10,6 +10,13 @@ Implements the following features of Microsoft's [Language Server Protocol](http
 - **hover** - hover over any native HTML element, global attribute, CSS at-rule, property, psuedo-selector, JavaScript API or buultin, to see its global support percentage.
 
 ## Config
+`canipls` will search the following places for configuration options, in order of precedence:
+1. a file called `.canipls.cfg` in the current project's root directory
+2. a file called `canipls.cfg` in the user's global app config directory
+  - on Windows, this is found at `%HOME%/AppData/Roaming/canipls/`
+  - on macOS and Linux, this is found at `~/.config/canipls/`
+3. use the default values (see below table)
+
 The following configuration options are available:
 
 | name | type | default | description |
