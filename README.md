@@ -60,6 +60,56 @@ TODO: marketplace link needed here
     ```
 </details>
 
+<details>
+<summary>Helix</summary>
+
+1. Download the `canipls` executable from the [Releases page](/releases/latest) for your operating system & architecture.
+2. (optional) Add the executable obtained in step 1 to your PATH.
+3. Add the following to your `languages.toml`:
+    ```toml
+    [language-server.canipls]                                          
+    command = "canipls"
+
+    # add as many of the following languages as you need:
+    
+    [[language]]
+    name = "html"
+    language-servers = ["canipls"]
+    
+    [[language]]
+    name = "css"
+    language-servers = ["canipls"]
+    
+    [[language]]
+    name = "javascript"                                                       
+    language-servers = ["canipls"]
+    
+    [[language]]
+    name = "typescript"                                                       
+    language-servers = ["canipls"]
+    
+    [[language]]
+    name = "jsx"                                                       
+    language-servers = ["canipls"]
+    
+    [[language]]
+    name = "tsx"                                                       
+    language-servers = ["canipls"]
+    
+    [[language]]
+    name = "vue"
+    language-servers = ["canipls"]
+    
+    [[language]]
+    name = "svelte"                                                       
+    language-servers = ["canipls"]
+    
+    [[language]]
+    name = "astro"                                                       
+    language-servers = ["canipls"]
+    ```
+</details>
+
 ## Config
 `canipls` will search the following places for configuration options, in order of precedence:
 1. a file called `.canipls.cfg` in the current project's root directory
