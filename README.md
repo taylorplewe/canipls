@@ -39,6 +39,18 @@ TODO: marketplace link needed here
 [`canipls-zed` extension source code](https://github.com/taylorplewe/canipls-zed)
 </details>
 
+<details>
+<summary>Neovim</summary>
+
+1. Download the `canipls` executable from the [Releases page](/releases/latest) for your operating system & architecture.
+2. (optional) Add the executable obtained in step 1 to your PATH.
+3. Add the following to your `init.lua`:
+    ```lua
+    -- TODO actual setup here
+    vim.lsp.enable('canipls')
+    ```
+</details>
+
 ## Config
 `canipls` will search the following places for configuration options, in order of precedence:
 1. a file called `.canipls.cfg` in the current project's root directory
