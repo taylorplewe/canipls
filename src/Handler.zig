@@ -1,6 +1,7 @@
 const std = @import("std");
 const lsp = @import("lsp");
 
+const config = @import("config.zig");
 const Document = @import("Document.zig");
 const lsp_to_ts = @import("lsp_to_ts.zig");
 
@@ -145,12 +146,13 @@ pub fn @"textDocument/didOpen"(
         params.textDocument.text,
     );
 
-    try parseCodeAndPublishDiagnosticsForFile(
-        self,
-        temp_allocator,
-        params.textDocument.uri,
-        doc,
-    );
+    if (config.config.show_low_support_warnings) {
+        try self.parseCodeAndPublishDiagnosticsForFile(
+            temp_allocator,
+            params.textDocument.uri,
+            doc,
+        );
+    }
 }
 
 /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didChange
@@ -165,11 +167,13 @@ pub fn @"textDocument/didChange"(
     if (document_get) |document| {
         document.swapSrc(&self.allocator, new_src);
 
-        try self.parseCodeAndPublishDiagnosticsForFile(
-            temp_allocator,
-            params.textDocument.uri,
-            document,
-        );
+        if (config.config.show_low_support_warnings) {
+            try self.parseCodeAndPublishDiagnosticsForFile(
+                temp_allocator,
+                params.textDocument.uri,
+                document,
+            );
+        }
     }
 }
 

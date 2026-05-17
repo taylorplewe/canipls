@@ -15,6 +15,7 @@ const log = std.log.scoped(.canipls);
 /// The fields in the user's config file should be formatted the exact same way as the fields in this struct:
 const Config = struct {
     support_threshold: f32 = 90.0,
+    show_low_support_warnings: bool = true,
 };
 pub var config: Config = .{};
 
@@ -81,17 +82,27 @@ pub fn applyConfigFileToGlobalConfig(file_bytes: []const u8) void {
                 switch (field.type) {
                     f32 => {
                         const f32_val = std.fmt.parseFloat(f32, value) catch |err| {
-                            log.warn("value on line {d} is not a valid float, ignoring line. Error: {}", .{ line_index, err });
+                            log.warn("value on line {d} is not a valid float; ignoring line. Error: {}", .{ line_index, err });
                             continue :line_loop;
                         };
                         @field(config, field.name) = f32_val;
                     },
+                    bool => {
+                        const bool_val = if (std.mem.eql(u8, value, "true"))
+                            true
+                        else if (std.mem.eql(u8, value, "false"))
+                            false
+                        else {
+                            log.warn("value on line {d} is not 'true' or 'false'; ignoring line.", .{line_index});
+                            continue :line_loop;
+                        };
+                        @field(config, field.name) = bool_val;
+                    },
                     else => {},
                 }
-            } else {
-                log.warn("no config field called '{s}' -- ignoring", .{key});
                 continue :line_loop;
             }
         }
+        log.warn("no config field called '{s}' -- ignoring", .{key});
     }
 }
