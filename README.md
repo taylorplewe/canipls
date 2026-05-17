@@ -11,8 +11,9 @@ Implements the following features of Microsoft's [Language Server Protocol](http
 
 ## Config
 The following configuration options are available:
+
 | name | type | default | description |
-| - | - | - |
+| - | - | - | - |
 | `support_threshold` | number | `90.0` | The minimum global browser support threshold, according to caniuse, that features must meet |
 | `show_low_support_warnings` | boolean | `true` | Whether to show warning diagnostics for features that fall below the desired support threshold. (If this is set to `false`, `support_threshold` has no effect.) |
 
