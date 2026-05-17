@@ -4,6 +4,7 @@ const std = @import("std");
 const lsp = @import("lsp");
 const ts = @import("tree-sitter");
 
+const config = @import("../config.zig");
 const types = @import("../types.zig");
 const HoverInfo = types.HoverInfo;
 const ElementKind = types.ElementKind;
@@ -15,7 +16,6 @@ const InjectionHoverInfo = types.InjectionHoverInfo;
 const log = std.log.scoped(.canipls);
 
 const BIN_FILE_STRING_WIDTH = 32;
-const THRESHOLD = 90.0; // TEMP
 
 init: *const fn () void,
 deinit: *const fn () void,
@@ -210,7 +210,7 @@ pub fn getDiagnosticsFromCode(
                 // look up this symbol in the appropriate support bin file
                 const maybe_support_percentage = getSupportPercentageForIdentifierFromBin(name, symbol_info.support_bin);
                 if (maybe_support_percentage) |percentage| {
-                    if (percentage < 90.0) diagnostics.append(allocator, getLspDiagnosticFromTsNode(
+                    if (percentage < config.config.support_threshold) diagnostics.append(allocator, getLspDiagnosticFromTsNode(
                         allocator,
                         &node,
                         symbol_info.element_kind,
