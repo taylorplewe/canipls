@@ -51,7 +51,7 @@ TODO: marketplace link needed here
 <details>
 <summary>Neovim</summary>
 
-1. Download the `canipls` executable from the [Releases page](/releases/latest) for your operating system & architecture.
+1. Download the `canipls` executable from the [Releases page](https://github.com/taylorplewe/canipls/releases/latest) for your operating system & architecture.
 2. (optional) Add the executable obtained in step 1 to your PATH.
 3. Add the following to your `init.lua`:
     ```lua
@@ -77,7 +77,7 @@ TODO: marketplace link needed here
 <details>
 <summary>Helix</summary>
 
-1. Download the `canipls` executable from the [Releases page](/releases/latest) for your operating system & architecture.
+1. Download the `canipls` executable from the [Releases page](https://github.com/taylorplewe/canipls/releases/latest) for your operating system & architecture.
 2. (optional) Add the executable obtained in step 1 to your PATH.
 3. Add the following to your `languages.toml`:
     ```toml
