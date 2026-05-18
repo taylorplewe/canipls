@@ -3,7 +3,7 @@
 
 A language server that shows [caniuse.com](https://caniuse.com) support percentages for web features, right in your editor.
 
-![canipls demo](js-demo.gif)
+![canipls demo](https://whencaniuse.com/gh/canipls-demo-js.gif)
 
 Implements the following features of Microsoft's [Language Server Protocol](https://microsoft.github.io/https://microsoft.github.io/language-server-protocol):
 - **diagnostics** - shows warnings on features whose global support percentage falls below the user-defined desired support threshold (or the default, if none is specified.)
