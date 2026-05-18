@@ -164,4 +164,4 @@ The following configuration options are available:
 
 ---
 
-This project was researched, designed, and written completely by hand. Among other reasons, quality is a higher priority than quantity for this project. Any pull requests that contain AI-generated content of any kind will be rejected.
+This project was researched, designed, and written completely by hand. Among other reasons, quality is a higher priority than quantity for this project. Pull requests that contain AI-generated content of any kind will be rejected.
