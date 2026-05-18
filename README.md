@@ -3,7 +3,7 @@
 
 A language server that shows [caniuse.com](https://caniuse.com) support percentages for web features, right in your editor.
 
-![canipls demo](js-demo.gif)
+![canipls demo](https://whencaniuse.com/gh/canipls-demo-js.gif)
 
 Implements the following features of Microsoft's [Language Server Protocol](https://microsoft.github.io/https://microsoft.github.io/language-server-protocol):
 - **diagnostics** - shows warnings on features whose global support percentage falls below the user-defined desired support threshold (or the default, if none is specified.)
@@ -51,7 +51,7 @@ TODO: marketplace link needed here
 <details>
 <summary>Neovim</summary>
 
-1. Download the `canipls` executable from the [Releases page](/releases/latest) for your operating system & architecture.
+1. Download the `canipls` executable from the [Releases page](https://github.com/taylorplewe/canipls/releases/latest) for your operating system & architecture.
 2. (optional) Add the executable obtained in step 1 to your PATH.
 3. Add the following to your `init.lua`:
     ```lua
@@ -77,7 +77,7 @@ TODO: marketplace link needed here
 <details>
 <summary>Helix</summary>
 
-1. Download the `canipls` executable from the [Releases page](/releases/latest) for your operating system & architecture.
+1. Download the `canipls` executable from the [Releases page](https://github.com/taylorplewe/canipls/releases/latest) for your operating system & architecture.
 2. (optional) Add the executable obtained in step 1 to your PATH.
 3. Add the following to your `languages.toml`:
     ```toml
