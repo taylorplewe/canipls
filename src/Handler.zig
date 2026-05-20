@@ -60,7 +60,7 @@ fn addDocument(
     _ = self.files.remove(owned_document_uri);
     try self.files.put(owned_document_uri, document);
 
-    return &document;
+    return self.files.getPtr(owned_document_uri).?;
 }
 fn removeDocument(self: *Handler, document_uri: []const u8) void {
     const document_get = self.files.get(document_uri);
@@ -128,7 +128,6 @@ pub fn initialize(
 
     lsp.basic_server.validateServerCapabilities(Handler, capabilities);
 
-    log.info("initialize", .{});
     return .{ .capabilities = capabilities };
 }
 
