@@ -162,6 +162,12 @@ The following configuration options are available:
 | `support_threshold` | number | `90.0` | The minimum global browser support threshold, according to caniuse, that features must meet |
 | `show_low_support_warnings` | boolean | `true` | Whether to show warning diagnostics for features that fall below the desired support threshold. (If this is set to `false`, `support_threshold` has no effect.) |
 
+Config files are simply plain text files containing one or more of the above config options, separated by newlines, with key/value pairs separated by a space:
+```
+support_threshold 80.0
+show_low_support_warnings true
+```
+
 ---
 
 This project was researched, designed, and written completely by hand. Among other reasons, quality is a higher priority than quantity for this project. Pull requests that contain AI-generated content of any kind will be rejected.
