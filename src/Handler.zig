@@ -138,14 +138,13 @@ pub fn @"textDocument/didOpen"(
     temp_allocator: std.mem.Allocator,
     params: lsp.types.TextDocument.DidOpenParams,
 ) !void {
-    log.info("textDocument/didOpen", .{});
-
     const doc = try self.addDocument(
         params.textDocument.uri,
         params.textDocument.languageId,
         params.textDocument.text,
     );
 
+    log.info("doc.src.len: {d}", .{doc.src.len});
     if (config.config.show_low_support_warnings) {
         try self.parseCodeAndPublishDiagnosticsForFile(
             temp_allocator,
@@ -183,8 +182,6 @@ pub fn @"textDocument/didClose"(
     _: std.mem.Allocator,
     params: lsp.types.TextDocument.DidCloseParams,
 ) !void {
-    log.info("textDocument/didClose", .{});
-
     self.removeDocument(params.textDocument.uri);
 }
 

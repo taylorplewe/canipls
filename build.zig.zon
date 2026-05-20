@@ -1,7 +1,7 @@
 .{
     .name = .canipls,
     .version = "0.0.0",
-    .fingerprint = 0xc7cc95a10df20034, // Changing this has security and trust implications.
+    .fingerprint = 0xd003482123f2a210, // Changing this has security and trust implications.
     .minimum_zig_version = "0.16.0",
     .dependencies = .{
         .lsp_kit = .{
