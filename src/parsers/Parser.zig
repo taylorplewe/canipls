@@ -6,6 +6,7 @@ const ts = @import("tree-sitter");
 
 const config = @import("../config.zig");
 const types = @import("../types.zig");
+const utils = @import("../utils.zig");
 const HoverInfo = types.HoverInfo;
 const ElementKind = types.ElementKind;
 const IgnoredSpan = types.IgnoredSpan;
@@ -65,26 +66,38 @@ fn getDiagnosticPhraseFromElement(allocator: std.mem.Allocator, element_kind: El
     };
 }
 var identifier_buf: [32]u8 = undefined;
-pub fn getSupportPercentageForIdentifierFromBin(
+pub fn getSupportPercentageAndCiuIdForIdentifierFromBin(
     identifier_name: []const u8,
     bin: []const u8,
-) ?f32 {
+) ?struct { f32, []const u8 } {
     const num_features_in_bin = std.mem.readInt(u32, bin[0..4], .little);
 
     // make identifier name in question 32-chars wide, padded with 0's
     @memcpy(identifier_buf[0..identifier_name.len], identifier_name);
     @memset(identifier_buf[identifier_name.len..], 0);
 
+    const sizeof_support_section = num_features_in_bin * @sizeOf(f32);
+    const sizeof_identifier_section = num_features_in_bin * BIN_FILE_STRING_WIDTH;
+
+    var next_identifier_offset = sizeof_support_section + @sizeOf(u32);
+    var next_ciu_id_addr_offset = next_identifier_offset + sizeof_identifier_section;
+
     // search for feature
-    var next_name_offset = (num_features_in_bin * @sizeOf(f32)) + @sizeOf(u32);
     for (0..num_features_in_bin) |i| {
-        const name = bin[next_name_offset..][0..BIN_FILE_STRING_WIDTH];
+        const name = bin[next_identifier_offset..][0..BIN_FILE_STRING_WIDTH];
+        // const ciu_id_addr = std.mem.readInt(u32, bin[next_ciu_id_addr_offset..][0..@sizeOf(u32)], .little);
+        const ciu_id_addr = utils.getValueFromData(u32, bin[next_ciu_id_addr_offset..]);
+        const ciu_id_len = bin[ciu_id_addr];
+        const ciu_id = bin[ciu_id_addr + 1 ..][0..ciu_id_len];
+
+        // TODO: simd vector search
         if (std.mem.eql(u8, &identifier_buf, name)) {
             const support_percentage_offset = (@sizeOf(f32) * i) + @sizeOf(u32);
-            const support_percentage: *f32 = @ptrCast(@alignCast(@constCast(bin[support_percentage_offset..][0..4])));
-            return support_percentage.*;
+            const support_percentage: f32 = utils.getValueFromData(f32, bin[support_percentage_offset..]);
+            return .{ support_percentage, ciu_id };
         }
-        next_name_offset += BIN_FILE_STRING_WIDTH;
+        next_identifier_offset += BIN_FILE_STRING_WIDTH;
+        next_ciu_id_addr_offset += @sizeOf(u32);
     }
     return null;
 }
@@ -208,8 +221,10 @@ pub fn getDiagnosticsFromCode(
                 }
 
                 // look up this symbol in the appropriate support bin file
-                const maybe_support_percentage = getSupportPercentageForIdentifierFromBin(name, symbol_info.support_bin);
-                if (maybe_support_percentage) |percentage| {
+                const maybe_feature_info = getSupportPercentageAndCiuIdForIdentifierFromBin(name, symbol_info.support_bin);
+                if (maybe_feature_info) |feature_info| {
+                    const percentage, const ciu_id = feature_info;
+                    _ = ciu_id; // autofix
                     if (percentage < config.config.support_threshold) diagnostics.append(allocator, getLspDiagnosticFromTsNode(
                         allocator,
                         &node,
@@ -297,10 +312,11 @@ pub fn getHoverDocFromCodeAtPosition(
                 const name = code[node.startByte()..node.endByte()][symbol_info.name_trim_start..];
 
                 // look up this symbol in the appropriate support bin file
-                const maybe_support_percentage = getSupportPercentageForIdentifierFromBin(name, symbol_info.support_bin);
-                if (maybe_support_percentage) |percentage| {
+                const maybe_feature_info = getSupportPercentageAndCiuIdForIdentifierFromBin(name, symbol_info.support_bin);
+                if (maybe_feature_info) |feature_info| {
+                    const percentage, const ciu_id = feature_info;
                     return HoverInfo{
-                        .caniuse_id = "html_elements_geolocation", // TEMP
+                        .caniuse_id = ciu_id,
                         .identifier = name,
                         .support_percentage = percentage,
                     };
