@@ -18,6 +18,9 @@ Supported file types:
 - Svelte
 - Astro
 
+> [!IMPORTANT]
+> While global support percentages in canipls rarely match 1:1 those of caniuse's, _they are never more than 1% off_, and rarely more than about 0.1% off. canipls data is refreshed once a day, but caniuse.com does not divulge all of its data sources.
+
 ## Usage
 Follow the instructions for getting canipls up and running in your editor:
 <details>
