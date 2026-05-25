@@ -34,19 +34,10 @@ Download the canipls extension from the marketplace or from within VS Code.
 </details>
 
 <details>
-<summary>JetBrains IDEs</summary>
-
-Download the canipls extension from the marketplace or from within JetBrains WebStorm or Rider.
-
-TODO: marketplace link needed here
-
-TODO: repo link needed here
-</details>
-
-<details>
 <summary>Zed</summary>
 
-Download the canipls extension from the marketplace or from within Zed.
+Download the canipls extension from within Zed (`ctrl`/`cmd` + `shift` + `x`).
+
 TODO: marketplace link needed here
 
 [`canipls-zed` extension source code](https://github.com/taylorplewe/canipls-zed)
