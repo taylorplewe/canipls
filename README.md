@@ -27,7 +27,8 @@ Follow the instructions for getting canipls up and running in your editor:
 <summary>VS Code</summary>
 
 Download the canipls extension from the marketplace or from within VS Code.
-TODO: marketplace link needed here
+
+[`canipls` extension on the Visual Studio Code marketplace](https://marketplace.visualstudio.com/items?itemName=TaylorPlewe.canipls)
 
 [`canipls-vscode` extension source code](https://github.com/taylorplewe/canipls-vscode)
 </details>
