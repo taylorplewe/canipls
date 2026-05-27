@@ -60,7 +60,7 @@ fn addDocument(
     _ = self.files.remove(owned_document_uri);
     try self.files.put(owned_document_uri, document);
 
-    return &document;
+    return self.files.getPtr(owned_document_uri).?;
 }
 fn removeDocument(self: *Handler, document_uri: []const u8) void {
     const document_get = self.files.get(document_uri);
@@ -143,6 +143,7 @@ pub fn @"textDocument/didOpen"(
         params.textDocument.text,
     );
 
+    log.info("doc.src.len: {d}", .{doc.src.len});
     if (config.config.show_low_support_warnings) {
         try self.parseCodeAndPublishDiagnosticsForFile(
             temp_allocator,

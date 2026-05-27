@@ -1,0 +1,54 @@
+name: Build and Release
+
+on:
+    workflow_dispatch:
+        inputs:
+            tag:
+                description: "Release tag. Should follow `major.minor.patch` semver pattern, without the 'v' prefix"
+                required: true
+                type: string
+
+jobs:
+    build:
+        name: Build ${{ matrix.target }}
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                include:
+                    - target: x86_64-macos
+                    - target: aarch64-macos
+                    - target: x86_64-linux
+                    - target: aarch64-linux
+                    - target: x86_64-windows
+                    - target: aarch64-windows
+        steps:
+            - uses: actions/checkout@v4
+            - uses: mlugg/setup-zig@v2
+              with:
+                  version: 0.16.0
+            - run: zig build -Doptimize=ReleaseFast -Dtarget=${{ matrix.target }}
+            - if: endsWith(matrix.target, 'windows')
+              run: zip canipls-${{ inputs.tag }}-${{ matrix.target }}.zip -j zig-out/bin/canipls.exe
+            - if: ${{ ! endsWith(matrix.target, 'windows') }}
+              run: tar -czf canipls-${{ inputs.tag }}-${{ matrix.target }}.tar.gz -C zig-out/bin canipls
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: artifact-${{ matrix.target }}
+                  path: canipls-*
+
+    release:
+        needs: build
+        name: Publish release v${{ inputs.tag }}
+        runs-on: ubuntu-latest
+        permissions: write-all
+        steps:
+            - id: download-artifacts
+              uses: actions/download-artifact@v5
+              with:
+                  pattern: artifact-*
+                  merge-multiple: true
+            - uses: softprops/action-gh-release@v2
+              with:
+                  tag_name: v${{ inputs.tag }}
+                  files: ${{ steps.download-artifacts.outputs.download-path }}/*
+                  draft: true # I can then go in and add a body manually before publishing

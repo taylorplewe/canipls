@@ -18,32 +18,27 @@ Supported file types:
 - Svelte
 - Astro
 
+> [!IMPORTANT]
+> While global support percentages in canipls rarely match 1:1 those of caniuse's, _they are never more than 1% off_, and rarely more than about 0.1% off. canipls data is refreshed once a day, but caniuse.com does not divulge all of its data sources.
+
 ## Usage
 Follow the instructions for getting canipls up and running in your editor:
 <details>
 <summary>VS Code</summary>
 
 Download the canipls extension from the marketplace or from within VS Code.
-TODO: marketplace link needed here
+
+[`canipls` extension on the Visual Studio Code marketplace](https://marketplace.visualstudio.com/items?itemName=TaylorPlewe.canipls)
 
 [`canipls-vscode` extension source code](https://github.com/taylorplewe/canipls-vscode)
 </details>
 
 <details>
-<summary>JetBrains IDEs</summary>
-
-Download the canipls extension from the marketplace or from within JetBrains WebStorm or Rider.
-
-TODO: marketplace link needed here
-
-TODO: repo link needed here
-</details>
-
-<details>
 <summary>Zed</summary>
 
-Download the canipls extension from the marketplace or from within Zed.
-TODO: marketplace link needed here
+Download the canipls extension from within Zed (`ctrl`/`cmd` + `shift` + `x`).
+
+TODO: marketplace link needed here once [this PR](https://github.com/zed-industries/extensions/pull/6220) gets merged
 
 [`canipls-zed` extension source code](https://github.com/taylorplewe/canipls-zed)
 </details>
@@ -169,5 +164,5 @@ show_low_support_warnings true
 ```
 
 ---
-
-This project was researched, designed, and written completely by hand. Among other reasons, quality is a higher priority than quantity for this project. Pull requests that contain AI-generated content of any kind will be rejected.
+> [!NOTE]
+> This project was researched, designed, and written completely by hand. Among other reasons, quality is a higher priority than quantity for this project. Pull requests that contain AI-generated content of any kind will be rejected.
