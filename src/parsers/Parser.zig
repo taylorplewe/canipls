@@ -65,17 +65,19 @@ fn getDiagnosticPhraseFromElement(allocator: std.mem.Allocator, element_kind: El
         return "";
     };
 }
-var identifier_buf: [256]u8 = undefined;
+var identifier_buf: [BIN_FILE_STRING_WIDTH]u8 = undefined;
 pub fn getSupportPercentageAndCiuIdForIdentifierFromBin(
     identifier_name: []const u8,
     bin: []const u8,
 ) ?struct { f32, []const u8 } {
-    const num_features_in_bin = std.mem.readInt(u32, bin[0..4], .little);
+    if (identifier_name.len > BIN_FILE_STRING_WIDTH) return null;
 
     // make identifier name in question 32-chars wide, padded with 0's
     @memcpy(identifier_buf[0..identifier_name.len], identifier_name);
-    @memset(identifier_buf[identifier_name.len..], 0);
+    if (identifier_name.len < 32)
+        @memset(identifier_buf[identifier_name.len..], 0);
 
+    const num_features_in_bin = std.mem.readInt(u32, bin[0..4], .little);
     const sizeof_support_section = num_features_in_bin * @sizeOf(f32);
     const sizeof_identifier_section = num_features_in_bin * BIN_FILE_STRING_WIDTH;
 
