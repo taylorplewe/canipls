@@ -38,7 +38,7 @@ Download the canipls extension from the marketplace or from within VS Code.
 
 Download the canipls extension from within Zed (`ctrl`/`cmd` + `shift` + `x`).
 
-TODO: marketplace link needed here
+TODO: marketplace link needed here once [this PR](https://github.com/zed-industries/extensions/pull/6220) gets merged
 
 [`canipls-zed` extension source code](https://github.com/taylorplewe/canipls-zed)
 </details>
