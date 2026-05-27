@@ -43,7 +43,6 @@ fn getParserFromLspLanguageKind(language_kind: lsp.types.TextDocument.LanguageKi
         .javascriptreact => return parsers.get("javascript"),
         .typescriptreact => return parsers.get("javascript"),
         .custom_value => |kind| {
-            log.info("custom type: {s}", .{kind});
             return if (std.mem.eql(u8, kind, "vue"))
                 parsers.get("html")
             else if (std.mem.eql(u8, kind, "Vue.js"))

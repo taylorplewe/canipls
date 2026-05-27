@@ -128,7 +128,6 @@ pub fn initialize(
 
     lsp.basic_server.validateServerCapabilities(Handler, capabilities);
 
-    log.info("initialize", .{});
     return .{ .capabilities = capabilities };
 }
 
@@ -138,8 +137,6 @@ pub fn @"textDocument/didOpen"(
     temp_allocator: std.mem.Allocator,
     params: lsp.types.TextDocument.DidOpenParams,
 ) !void {
-    log.info("textDocument/didOpen", .{});
-
     const doc = try self.addDocument(
         params.textDocument.uri,
         params.textDocument.languageId,
@@ -183,8 +180,6 @@ pub fn @"textDocument/didClose"(
     _: std.mem.Allocator,
     params: lsp.types.TextDocument.DidCloseParams,
 ) !void {
-    log.info("textDocument/didClose", .{});
-
     self.removeDocument(params.textDocument.uri);
 }
 

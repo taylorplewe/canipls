@@ -64,7 +64,7 @@ fn getDiagnosticPhraseFromElement(allocator: std.mem.Allocator, element_kind: El
         return "";
     };
 }
-var identifier_buf: [32]u8 = undefined;
+var identifier_buf: [256]u8 = undefined;
 pub fn getSupportPercentageForIdentifierFromBin(
     identifier_name: []const u8,
     bin: []const u8,
