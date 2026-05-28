@@ -26,9 +26,7 @@ Follow the instructions for getting canipls up and running in your editor:
 <details>
 <summary>VS Code</summary>
 
-Download the canipls extension from the marketplace or from within VS Code.
-
-[`canipls` extension on the Visual Studio Code marketplace](https://marketplace.visualstudio.com/items?itemName=TaylorPlewe.canipls)
+Download the canipls extension from the [marketplace](https://marketplace.visualstudio.com/items?itemName=TaylorPlewe.canipls) or from within VS Code.
 
 [`canipls-vscode` extension source code](https://github.com/taylorplewe/canipls-vscode)
 </details>
@@ -39,6 +37,8 @@ Download the canipls extension from the marketplace or from within VS Code.
 Download the canipls extension from within Zed (`ctrl`/`cmd` + `shift` + `x`).
 
 TODO: marketplace link needed here once [this PR](https://github.com/zed-industries/extensions/pull/6220) gets merged
+
+(Until the above extension gets merged, download the extension from the source code (linked below) and click the Install Dev Extension inside Zed to install this extension)
 
 [`canipls-zed` extension source code](https://github.com/taylorplewe/canipls-zed)
 </details>
@@ -165,4 +165,4 @@ show_low_support_warnings true
 
 ---
 > [!NOTE]
-> This project was researched, designed, and written completely by hand. Among other reasons, quality is a higher priority than quantity for this project. Pull requests that contain AI-generated content of any kind will be rejected.
+> This project is researched, designed, and written completely by hand. Among other reasons, quality is a higher priority than quantity for this project. Pull requests that contain AI-generated content of any kind will be rejected.
