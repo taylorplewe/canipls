@@ -34,7 +34,8 @@ const InitBinsError = error{
     NoHomeEnv,
 };
 
-const CANIPLS_BINS_URL = "https://whencaniuse.com/canipls-bins.tar.gz";
+// const CANIPLS_BINS_URL = "https://whencaniuse.com/canipls-bins.tar.gz";
+const CANIPLS_BINS_URL = "https://whencaniuse.com/canipls-bins-new.tar.gz"; // TEMP !
 
 pub fn init(allocator: std.mem.Allocator, io: std.Io, environ_map: *std.process.Environ.Map) !void {
     // build path to canipls bins
