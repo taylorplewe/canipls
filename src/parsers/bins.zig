@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const build_options = @import("build_options");
 
 const utils = @import("../utils.zig");
 
@@ -170,6 +171,8 @@ pub fn getSupportPercentageAndCiuIdForIdentifierFromBin(
     bin: []const u8,
 ) ?struct { f32, []const u8 } {
     if (identifier_name.len > BIN_FILE_STRING_WIDTH) return null;
+
+    log.info("current canipls version patch: {d}", .{build_options.version.patch});
 
     // make identifier name in question 32-chars wide, padded with 0's
     @memcpy(identifier_buf[0..identifier_name.len], identifier_name);
