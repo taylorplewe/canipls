@@ -7,6 +7,7 @@ const ts = @import("tree-sitter");
 const config = @import("../config.zig");
 const types = @import("../types.zig");
 const utils = @import("../utils.zig");
+const bins = @import("bins.zig");
 const HoverInfo = types.HoverInfo;
 const ElementKind = types.ElementKind;
 const IgnoredSpan = types.IgnoredSpan;
@@ -65,44 +66,6 @@ fn getDiagnosticPhraseFromElement(allocator: std.mem.Allocator, element_kind: El
         return "";
     };
 }
-var identifier_buf: [BIN_FILE_STRING_WIDTH]u8 = undefined;
-pub fn getSupportPercentageAndCiuIdForIdentifierFromBin(
-    identifier_name: []const u8,
-    bin: []const u8,
-) ?struct { f32, []const u8 } {
-    if (identifier_name.len > BIN_FILE_STRING_WIDTH) return null;
-
-    // make identifier name in question 32-chars wide, padded with 0's
-    @memcpy(identifier_buf[0..identifier_name.len], identifier_name);
-    if (identifier_name.len < 32)
-        @memset(identifier_buf[identifier_name.len..], 0);
-
-    const num_features_in_bin = std.mem.readInt(u32, bin[0..4], .little);
-    const sizeof_support_section = num_features_in_bin * @sizeOf(f32);
-    const sizeof_identifier_section = num_features_in_bin * BIN_FILE_STRING_WIDTH;
-
-    var next_identifier_offset = sizeof_support_section + @sizeOf(u32);
-    var next_ciu_id_addr_offset = next_identifier_offset + sizeof_identifier_section;
-
-    // search for feature
-    for (0..num_features_in_bin) |i| {
-        const name = bin[next_identifier_offset..][0..BIN_FILE_STRING_WIDTH];
-        // const ciu_id_addr = std.mem.readInt(u32, bin[next_ciu_id_addr_offset..][0..@sizeOf(u32)], .little);
-        const ciu_id_addr = utils.getValueFromData(u32, bin[next_ciu_id_addr_offset..]);
-        const ciu_id_len = bin[ciu_id_addr];
-        const ciu_id = bin[ciu_id_addr + 1 ..][0..ciu_id_len];
-
-        // TODO: simd vector search
-        if (std.mem.eql(u8, &identifier_buf, name)) {
-            const support_percentage_offset = (@sizeOf(f32) * i) + @sizeOf(u32);
-            const support_percentage: f32 = utils.getValueFromData(f32, bin[support_percentage_offset..]);
-            return .{ support_percentage, ciu_id };
-        }
-        next_identifier_offset += BIN_FILE_STRING_WIDTH;
-        next_ciu_id_addr_offset += @sizeOf(u32);
-    }
-    return null;
-}
 
 pub fn getDiagnosticsFromCode(
     /// This should be the temporary allocator provided by the LSP handler function; the allocated memory is *NOT* freed in this code.
@@ -111,7 +74,7 @@ pub fn getDiagnosticsFromCode(
     code: []const u8,
     code_offset_column: u32,
     code_offset_row: u32,
-    /// A function used to extract the actual comment text from the whole comment syntax (e.g. remove leading "<!-- " and trailing " -->")
+    /// A function used to extract the actual comment text from the whole comment syntax (e.g. remove leading "<!-- " and trailing " -->" in HTML)
     comment_trim_fn: *const fn (in: []const u8) []const u8,
     symbols: []const SymbolInfo,
     injections: []const InjectionParseInfo,
@@ -223,7 +186,7 @@ pub fn getDiagnosticsFromCode(
                 }
 
                 // look up this symbol in the appropriate support bin file
-                const maybe_feature_info = getSupportPercentageAndCiuIdForIdentifierFromBin(name, symbol_info.support_bin);
+                const maybe_feature_info = bins.getSupportPercentageAndCiuIdForIdentifierFromBin(name, symbol_info.support_bin);
                 if (maybe_feature_info) |feature_info| {
                     const percentage, const ciu_id = feature_info;
                     _ = ciu_id; // autofix
@@ -314,7 +277,7 @@ pub fn getHoverDocFromCodeAtPosition(
                 const name = code[node.startByte()..node.endByte()][symbol_info.name_trim_start..];
 
                 // look up this symbol in the appropriate support bin file
-                const maybe_feature_info = getSupportPercentageAndCiuIdForIdentifierFromBin(name, symbol_info.support_bin);
+                const maybe_feature_info = bins.getSupportPercentageAndCiuIdForIdentifierFromBin(name, symbol_info.support_bin);
                 if (maybe_feature_info) |feature_info| {
                     const percentage, const ciu_id = feature_info;
                     return HoverInfo{

@@ -1,7 +1,11 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+const utils = @import("../utils.zig");
+
 const log = std.log.scoped(.canipls);
+
+const BIN_FILE_STRING_WIDTH = 32;
 
 pub const BinKind = enum {
     HtmlTags,
@@ -83,7 +87,8 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, environ_map: *std.process.
         }
 
         // don't need to fetch new tarball?
-        if (are_all_files_present and oldest_timestamp_ms >= last_seven_thirty_am_utc_ms) break :fetch_new_tarball_if_out_of_date;
+        // TEMP: uncomment:
+        if (false and are_all_files_present and oldest_timestamp_ms >= last_seven_thirty_am_utc_ms) break :fetch_new_tarball_if_out_of_date;
 
         log.info("fetching new canipls bin files tarball...", .{});
 
@@ -94,7 +99,8 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, environ_map: *std.process.
         }
 
         // get latest archive from url
-        var bins_tarball_buf: [std.math.maxInt(u16)]u8 = undefined; // NOTE: only allows a tarball up to 65,536 bytes! Will need to expand when necessary!
+        const SIZEOF_FETCH_BUF = 400_000; // as of May 31, 2026, the tarball is only 216,704 B
+        var bins_tarball_buf: [SIZEOF_FETCH_BUF]u8 = undefined; // NOTE: only allows a tarball up to 65,536 bytes! Will need to expand when necessary!
         var fetch_response_writer = std.Io.Writer.fixed(&bins_tarball_buf);
         var client: std.http.Client = .{ .allocator = allocator, .io = io };
         defer client.deinit();
@@ -138,4 +144,84 @@ pub fn deinit(
     for (bin_map.values) |bin| {
         allocator.free(bin);
     }
+}
+
+const BinSection = enum {
+    Support,
+    CiuIdAddr,
+    Reserved,
+    FirstChildIndex,
+    NumChildren,
+    TreeSitterSyntaxNodeType,
+    Identifier,
+};
+var sizeof_entry_per_bin_section = std.EnumArray(BinSection, usize).init(.{
+    .Support = @sizeOf(f32),
+    .CiuIdAddr = @sizeOf(u32),
+    .Reserved = @sizeOf(u32),
+    .FirstChildIndex = @sizeOf(u32),
+    .NumChildren = @sizeOf(u16),
+    .TreeSitterSyntaxNodeType = @sizeOf(u8),
+    .Identifier = BIN_FILE_STRING_WIDTH,
+});
+var identifier_buf: [BIN_FILE_STRING_WIDTH]u8 = undefined;
+pub fn getSupportPercentageAndCiuIdForIdentifierFromBin(
+    identifier_name: []const u8,
+    bin: []const u8,
+) ?struct { f32, []const u8 } {
+    if (identifier_name.len > BIN_FILE_STRING_WIDTH) return null;
+
+    // make identifier name in question 32-chars wide, padded with 0's
+    @memcpy(identifier_buf[0..identifier_name.len], identifier_name);
+    if (identifier_name.len < 32)
+        @memset(identifier_buf[identifier_name.len..], 0);
+
+    const min_compatible_canipls_version = utils.getValueFromData(u32, bin[0..]);
+    _ = min_compatible_canipls_version;
+    const num_features_total = utils.getValueFromData(u32, bin[4..]);
+    const num_features_toplevel = utils.getValueFromData(u32, bin[8..]);
+    const sizeof_header = @sizeOf(u32) * 4;
+
+    var sizeof_bin_sections: std.EnumArray(BinSection, usize) = blk: {
+        var ea: std.EnumArray(BinSection, usize) = .initFill(0);
+        var it = sizeof_entry_per_bin_section.iterator();
+        var index: usize = 0;
+        while (it.next()) |sizeof_entry| {
+            ea.set(@enumFromInt(index), sizeof_entry.value.* * num_features_total);
+            index += 1;
+        }
+        break :blk ea;
+    };
+
+    const section_addrs: std.EnumArray(BinSection, usize) = blk: {
+        var ea: std.EnumArray(BinSection, usize) = .initFill(0);
+        var current_pos: usize = sizeof_header;
+        var it = sizeof_bin_sections.iterator();
+        var index: usize = 0;
+        while (it.next()) |sizeof_entry| {
+            ea.set(@enumFromInt(index), current_pos);
+            current_pos += sizeof_entry.value.*;
+            index += 1;
+        }
+        break :blk ea;
+    };
+
+    // search for feature
+    for (0..num_features_toplevel) |i| {
+        const next_support_offset = section_addrs.get(.Support) + (i * sizeof_entry_per_bin_section.get(.Support));
+        const next_identifier_offset = section_addrs.get(.Identifier) + (i * sizeof_entry_per_bin_section.get(.Identifier));
+        const next_ciu_id_addr_offset = section_addrs.get(.CiuIdAddr) + (i * sizeof_entry_per_bin_section.get(.CiuIdAddr));
+
+        const name = bin[next_identifier_offset..][0..BIN_FILE_STRING_WIDTH];
+        const ciu_id_addr = utils.getValueFromData(u32, bin[next_ciu_id_addr_offset..]);
+        const ciu_id_len = bin[ciu_id_addr];
+        const ciu_id = bin[ciu_id_addr + 1 ..][0..ciu_id_len];
+
+        // TODO: simd vector search
+        if (std.mem.eql(u8, &identifier_buf, name)) {
+            const support_percentage: f32 = utils.getValueFromData(f32, bin[next_support_offset..]);
+            return .{ support_percentage, ciu_id };
+        }
+    }
+    return null;
 }
