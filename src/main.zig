@@ -21,11 +21,11 @@ pub fn main(init: std.process.Init) !void {
 
     try config.set(init.io, init.environ_map);
 
-    try bins.init(
+    bins.init(
         init.gpa,
         init.io,
         init.environ_map,
-    );
+    ) catch return;
     defer bins.deinit(init.gpa);
 
     lsp_to_ts.init();

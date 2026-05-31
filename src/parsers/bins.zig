@@ -37,25 +37,25 @@ pub var bin_map: std.EnumMap(BinKind, []const u8) = .init(.{});
 const InitBinsError = error{
     NoLocalAppDataEnv,
     NoHomeEnv,
+    IncompatibleCaniplsVersion,
 };
 
 // const CANIPLS_BINS_URL = "https://whencaniuse.com/canipls-bins.tar.gz";
 const CANIPLS_BINS_URL = "https://whencaniuse.com/canipls-bins-new.tar.gz"; // TEMP !
 
-pub fn init(allocator: std.mem.Allocator, io: std.Io, environ_map: *std.process.Environ.Map) !void {
+pub fn init(server_allocator: std.mem.Allocator, io: std.Io, environ_map: *std.process.Environ.Map) !void {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
     // build path to canipls bins
     var user_local_path: []const u8 = undefined;
-    defer allocator.free(user_local_path);
     if (builtin.os.tag == .windows) {
-        // TODO: there doesn't need to be an allocation here, but there *does* in the UNIX path below; how do I only free *that* memory, and not *this* one, at the end of the function?
-        // luckily this string isn't very long so it is essentially inconsequential
-        user_local_path = try allocator.dupe(u8, environ_map.get("LOCALAPPDATA") orelse return InitBinsError.NoLocalAppDataEnv);
+        user_local_path = environ_map.get("LOCALAPPDATA") orelse return InitBinsError.NoLocalAppDataEnv;
     } else {
         const home_path = environ_map.get("HOME") orelse return InitBinsError.NoHomeEnv;
-        user_local_path = try std.fs.path.join(allocator, &.{ home_path, ".cache" });
+        user_local_path = try std.fs.path.join(arena.allocator(), &.{ home_path, ".cache" });
     }
-    const canipls_bins_path = try std.fs.path.join(allocator, &.{ user_local_path, "canipls", "bins" });
-    defer allocator.free(canipls_bins_path);
+    const canipls_bins_path = try std.fs.path.join(arena.allocator(), &.{ user_local_path, "canipls", "bins" });
 
     // create that path if it doesn't exist
     const canipls_bins_dir = try std.Io.Dir.cwd().createDirPathOpen(io, canipls_bins_path, .{ .open_options = .{ .iterate = true } });
@@ -103,7 +103,7 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, environ_map: *std.process.
         const SIZEOF_FETCH_BUF = 400_000; // as of May 31, 2026, the tarball is only 216,704 B
         var bins_tarball_buf: [SIZEOF_FETCH_BUF]u8 = undefined; // NOTE: only allows a tarball up to 65,536 bytes! Will need to expand when necessary!
         var fetch_response_writer = std.Io.Writer.fixed(&bins_tarball_buf);
-        var client: std.http.Client = .{ .allocator = allocator, .io = io };
+        var client: std.http.Client = .{ .allocator = arena.allocator(), .io = io };
         defer client.deinit();
         const fetch_res = try client.fetch(.{
             .location = .{ .url = CANIPLS_BINS_URL },
@@ -130,20 +130,46 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, environ_map: *std.process.
     }
 
     // load bin files' contents into bin map
+    errdefer deinit(server_allocator);
     var canipls_bins_dir_it = canipls_bins_dir.iterate();
     while (try canipls_bins_dir_it.next(io)) |entry| {
-        const bin = try canipls_bins_dir.readFileAlloc(io, entry.name, allocator, .unlimited);
+        const bin = try canipls_bins_dir.readFileAlloc(io, entry.name, server_allocator, .unlimited);
         const bin_kind = getBinKindFromPath(entry.name).?;
         bin_map.put(bin_kind, bin);
+
+        // check that this version of canipls is compatible with every bin file
+        const min_compatible_canipls_version = utils.getValueFromData(u32, bin[0..]);
+        _ = min_compatible_canipls_version;
+        const is_canipls_version_compatible =
+            if (bin[0] > build_options.version.major)
+                false
+            else if (bin[1] > build_options.version.minor)
+                false
+            else if (bin[2] > build_options.version.patch)
+                false
+            else
+                true;
+        if (!is_canipls_version_compatible) {
+            log.err("out-of-date canipls version {d}.{d}.{d} is incompatible with binary file, which requires >= v{d}.{d}.{d}", .{
+                build_options.version.major,
+                build_options.version.minor,
+                build_options.version.patch,
+                bin[0],
+                bin[1],
+                bin[2],
+            });
+            log.err("exiting", .{});
+            return InitBinsError.IncompatibleCaniplsVersion;
+        }
     }
 }
 
 pub fn deinit(
     /// Must be the same allocator passed into `init()`.
-    allocator: std.mem.Allocator,
+    server_allocator: std.mem.Allocator,
 ) void {
     for (bin_map.values) |bin| {
-        allocator.free(bin);
+        server_allocator.free(bin);
     }
 }
 
@@ -172,15 +198,11 @@ pub fn getSupportPercentageAndCiuIdForIdentifierFromBin(
 ) ?struct { f32, []const u8 } {
     if (identifier_name.len > BIN_FILE_STRING_WIDTH) return null;
 
-    log.info("current canipls version patch: {d}", .{build_options.version.patch});
-
     // make identifier name in question 32-chars wide, padded with 0's
     @memcpy(identifier_buf[0..identifier_name.len], identifier_name);
     if (identifier_name.len < 32)
         @memset(identifier_buf[identifier_name.len..], 0);
 
-    const min_compatible_canipls_version = utils.getValueFromData(u32, bin[0..]);
-    _ = min_compatible_canipls_version;
     const num_features_total = utils.getValueFromData(u32, bin[4..]);
     const num_features_toplevel = utils.getValueFromData(u32, bin[8..]);
     const sizeof_header = @sizeOf(u32) * 4;
