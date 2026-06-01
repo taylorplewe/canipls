@@ -34,11 +34,7 @@ Download the canipls extension from the [marketplace](https://marketplace.visual
 <details>
 <summary>Zed</summary>
 
-Download the canipls extension from within Zed (`ctrl`/`cmd` + `shift` + `x`).
-
-TODO: marketplace link needed here once [this PR](https://github.com/zed-industries/extensions/pull/6220) gets merged
-
-(Until the above extension gets merged, download the extension from the source code (linked below) and click the Install Dev Extension inside Zed to install this extension)
+Download the [canipls Zed extension](https://zed.dev/extensions/canipls-lint) from within Zed (`ctrl`/`cmd` + `shift` + `x` to open the Extensions view).
 
 [`canipls-zed` extension source code](https://github.com/taylorplewe/canipls-zed)
 </details>
