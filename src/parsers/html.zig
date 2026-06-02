@@ -221,82 +221,157 @@ pub fn parseHtmlAndReturnDiagnostics(
                 }
             }
 
+            const maybe_tag_feature_info = bins.getSymbolSupportInfoFromBin(&.{.{ .name = tag_name, .node_kind = .HtmlTag }});
+            if (maybe_tag_feature_info) |feature_info| {
+                if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                    allocator,
+                    &tag_node,
+                    types.ElementKind.HtmlElement,
+                    feature_info.support,
+                    start_column,
+                    start_row,
+                )) catch |err| {
+                    log.err("could not add diagnostic for HTML tag {s} to `diagnostics` ArrayList: {}", .{ tag_name, err });
+                };
+            }
+
+            var last_attr_name: ?[]const u8 = null;
+            for (match.captures[1..]) |capture| {
+                const node = capture.node;
+                const name = code[node.startByte()..node.endByte()];
+                if (last_attr_name != null and std.mem.eql(u8, capture.node.kind(), "attribute_value")) {
+                    if (bins.getSymbolSupportInfoFromBin(&.{
+                        .{ .name = last_attr_name.?, .node_kind = .HtmlAttribute },
+                        .{ .name = name, .node_kind = .HtmlStringLiteral },
+                    })) |feature_info| {
+                        if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                            allocator,
+                            &node,
+                            types.ElementKind.HtmlAttribute,
+                            feature_info.support,
+                            start_column,
+                            start_row,
+                        )) catch |err| {
+                            log.err("could not add diagnostic for HTML attribute value {s} to `diagnostics` ArrayList: {}", .{ name, err });
+                        };
+                        continue;
+                    }
+                    if (bins.getSymbolSupportInfoFromBin(&.{
+                        .{ .name = tag_name, .node_kind = .HtmlTag },
+                        .{ .name = last_attr_name.?, .node_kind = .HtmlAttribute },
+                        .{ .name = name, .node_kind = .HtmlStringLiteral },
+                    })) |feature_info| {
+                        if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                            allocator,
+                            &node,
+                            types.ElementKind.HtmlAttribute,
+                            feature_info.support,
+                            start_column,
+                            start_row,
+                        )) catch |err| {
+                            log.err("could not add diagnostic for HTML attribute value {s} to `diagnostics` ArrayList: {}", .{ name, err });
+                        };
+                        continue;
+                    }
+                    last_attr_name = null;
+                } else {
+                    last_attr_name = name;
+                    if (bins.getSymbolSupportInfoFromBin(&.{
+                        .{ .name = name, .node_kind = .HtmlAttribute },
+                    })) |feature_info| {
+                        if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                            allocator,
+                            &node,
+                            types.ElementKind.HtmlAttribute,
+                            feature_info.support,
+                            start_column,
+                            start_row,
+                        )) catch |err| {
+                            log.err("could not add diagnostic for HTML attribute {s} to `diagnostics` ArrayList: {}", .{ name, err });
+                        };
+                        continue;
+                    }
+                    if (bins.getSymbolSupportInfoFromBin(&.{
+                        .{ .name = tag_name, .node_kind = .HtmlTag },
+                        .{ .name = name, .node_kind = .HtmlAttribute },
+                    })) |feature_info| {
+                        if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                            allocator,
+                            &node,
+                            types.ElementKind.HtmlAttribute,
+                            feature_info.support,
+                            start_column,
+                            start_row,
+                        )) catch |err| {
+                            log.err("could not add diagnostic for HTML attribute {s} to `diagnostics` ArrayList: {}", .{ name, err });
+                        };
+                        continue;
+                    }
+                }
+            }
+
             // look up this symbol in the appropriate support bin file
             // const maybe_feature_info = bins.getSupportPercentageAndCiuIdForIdentifierFromBin(name, symbol_info.support_bin);
 
             // TODO: the following block is VERY TEMPORARY, please don't allow in prod code
-            const bin = bins.bin_map.get(.HtmlTag).?;
+            // const bin = bins.bin_map.get(.HtmlTag).?;
 
-            const maybe_feature_info = percentage: {
-                if (tag_name.len > 32) break :percentage null;
+            // const maybe_feature_info = percentage: {
+            //     if (tag_name.len > 32) break :percentage null;
 
-                // make identifier name in question 32-chars wide, padded with 0's
-                @memcpy(identifier_buf[0..tag_name.len], tag_name);
-                if (tag_name.len < 32)
-                    @memset(identifier_buf[tag_name.len..], 0);
+            //     // make identifier name in question 32-chars wide, padded with 0's
+            //     @memcpy(identifier_buf[0..tag_name.len], tag_name);
+            //     if (tag_name.len < 32)
+            //         @memset(identifier_buf[tag_name.len..], 0);
 
-                const num_features_total = utils.getValueFromDataAligned(u32, bin[4..]);
-                const num_features_toplevel = utils.getValueFromDataAligned(u32, bin[8..]);
-                const sizeof_header = @sizeOf(u32) * 4;
+            //     const num_features_total = utils.getValueFromDataAligned(u32, bin[4..]);
+            //     const num_features_toplevel = utils.getValueFromDataAligned(u32, bin[8..]);
+            //     const sizeof_header = @sizeOf(u32) * 4;
 
-                var sizeof_bin_sections: std.EnumArray(BinSection, usize) = blk: {
-                    var ea: std.EnumArray(BinSection, usize) = .initFill(0);
-                    var it = sizeof_entry_per_bin_section.iterator();
-                    var index: usize = 0;
-                    while (it.next()) |sizeof_entry| {
-                        ea.set(@enumFromInt(index), sizeof_entry.value.* * num_features_total);
-                        index += 1;
-                    }
-                    break :blk ea;
-                };
+            //     var sizeof_bin_sections: std.EnumArray(BinSection, usize) = blk: {
+            //         var ea: std.EnumArray(BinSection, usize) = .initFill(0);
+            //         var it = sizeof_entry_per_bin_section.iterator();
+            //         var index: usize = 0;
+            //         while (it.next()) |sizeof_entry| {
+            //             ea.set(@enumFromInt(index), sizeof_entry.value.* * num_features_total);
+            //             index += 1;
+            //         }
+            //         break :blk ea;
+            //     };
 
-                const section_addrs: std.EnumArray(BinSection, usize) = blk: {
-                    var ea: std.EnumArray(BinSection, usize) = .initFill(0);
-                    var current_pos: usize = sizeof_header;
-                    var it = sizeof_bin_sections.iterator();
-                    var index: usize = 0;
-                    while (it.next()) |sizeof_entry| {
-                        ea.set(@enumFromInt(index), current_pos);
-                        current_pos += sizeof_entry.value.*;
-                        index += 1;
-                    }
-                    break :blk ea;
-                };
+            //     const section_addrs: std.EnumArray(BinSection, usize) = blk: {
+            //         var ea: std.EnumArray(BinSection, usize) = .initFill(0);
+            //         var current_pos: usize = sizeof_header;
+            //         var it = sizeof_bin_sections.iterator();
+            //         var index: usize = 0;
+            //         while (it.next()) |sizeof_entry| {
+            //             ea.set(@enumFromInt(index), current_pos);
+            //             current_pos += sizeof_entry.value.*;
+            //             index += 1;
+            //         }
+            //         break :blk ea;
+            //     };
 
-                // search for feature
-                for (0..num_features_toplevel) |i| {
-                    const next_support_offset = section_addrs.get(.Support) + (i * sizeof_entry_per_bin_section.get(.Support));
-                    const next_identifier_offset = section_addrs.get(.Identifier) + (i * sizeof_entry_per_bin_section.get(.Identifier));
-                    const next_ciu_id_addr_offset = section_addrs.get(.CiuIdAddr) + (i * sizeof_entry_per_bin_section.get(.CiuIdAddr));
+            //     // search for feature
+            //     for (0..num_features_toplevel) |i| {
+            //         const next_support_offset = section_addrs.get(.Support) + (i * sizeof_entry_per_bin_section.get(.Support));
+            //         const next_identifier_offset = section_addrs.get(.Identifier) + (i * sizeof_entry_per_bin_section.get(.Identifier));
+            //         const next_ciu_id_addr_offset = section_addrs.get(.CiuIdAddr) + (i * sizeof_entry_per_bin_section.get(.CiuIdAddr));
 
-                    const my_name = bin[next_identifier_offset..][0..32];
-                    const ciu_id_addr = utils.getValueFromDataAligned(u32, bin[next_ciu_id_addr_offset..]);
-                    const ciu_id_len = bin[ciu_id_addr];
-                    const ciu_id = bin[ciu_id_addr + 1 ..][0..ciu_id_len];
+            //         const my_name = bin[next_identifier_offset..][0..32];
+            //         const ciu_id_addr = utils.getValueFromDataAligned(u32, bin[next_ciu_id_addr_offset..]);
+            //         const ciu_id_len = bin[ciu_id_addr];
+            //         const ciu_id = bin[ciu_id_addr + 1 ..][0..ciu_id_len];
 
-                    // TODO: simd vector search
-                    if (std.mem.eql(u8, &identifier_buf, my_name)) {
-                        const support_percentage: f32 = utils.getValueFromDataAligned(f32, bin[next_support_offset..]);
-                        break :percentage .{ support_percentage, ciu_id };
-                    }
-                }
-                break :percentage null;
-            };
+            //         // TODO: simd vector search
+            //         if (std.mem.eql(u8, &identifier_buf, my_name)) {
+            //             const support_percentage: f32 = utils.getValueFromDataAligned(f32, bin[next_support_offset..]);
+            //             break :percentage .{ support_percentage, ciu_id };
+            //         }
+            //     }
+            //     break :percentage null;
+            // };
 
-            if (maybe_feature_info) |feature_info| {
-                const percentage, _ = feature_info;
-                if (percentage < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
-                    allocator,
-                    &tag_node,
-                    types.ElementKind.HtmlElement,
-                    percentage,
-                    start_column,
-                    start_row,
-                )) catch |err| {
-                    log.err("could not add diagnostic to `diagnostics` ArrayList: {}", .{err});
-                    return diagnostics.items;
-                };
-            }
         }
 
         for (injections) |injection_info| {
@@ -359,43 +434,48 @@ pub fn getHoverInfoFromHtmlAtPosition(
     row: u32,
     lang: *ts.Language,
 ) ?HoverInfo {
-    const QUERY_TAGS = "(tag_name) @tagname";
-    const QUERY_ATTRS = "(attribute_name) @attrname";
-    const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
-    const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
+    _ = code; // autofix
+    _ = column; // autofix
+    _ = row; // autofix
+    _ = lang; // autofix
+    // const QUERY_TAGS = "(tag_name) @tagname";
+    // const QUERY_ATTRS = "(attribute_name) @attrname";
+    // const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
+    // const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
 
-    const symbols = [_]types.SymbolInfo{
-        .{
-            .element_kind = .HtmlAttribute,
-            .support_bin = bins.bin_map.get(.HtmlAttribute).?,
-            .ts_query_text = QUERY_ATTRS,
-        },
-        .{
-            .element_kind = .HtmlElement,
-            .support_bin = bins.bin_map.get(.HtmlTag).?,
-            .ts_query_text = QUERY_TAGS,
-        },
-    };
+    // const symbols = [_]types.SymbolInfo{
+    //     .{
+    //         .element_kind = .HtmlAttribute,
+    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.HtmlAttribute),
+    //         .ts_query_text = QUERY_ATTRS,
+    //     },
+    //     .{
+    //         .element_kind = .HtmlElement,
+    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.HtmlTag),
+    //         .ts_query_text = QUERY_TAGS,
+    //     },
+    // };
 
-    const injections = [_]types.InjectionHoverInfo{
-        .{
-            .injection_hover_fn = js.JavascriptParser().getHoverInfoAtPosition,
-            .ts_query_text = QUERY_SCRIPT_BLOCKS,
-        },
-        .{
-            .injection_hover_fn = css.CssParser().getHoverInfoAtPosition,
-            .ts_query_text = QUERY_STYLE_BLOCKS,
-        },
-    };
+    // const injections = [_]types.InjectionHoverInfo{
+    //     .{
+    //         .injection_hover_fn = js.JavascriptParser().getHoverInfoAtPosition,
+    //         .ts_query_text = QUERY_SCRIPT_BLOCKS,
+    //     },
+    //     .{
+    //         .injection_hover_fn = css.CssParser().getHoverInfoAtPosition,
+    //         .ts_query_text = QUERY_STYLE_BLOCKS,
+    //     },
+    // };
 
-    return Parser.getHoverDocFromCodeAtPosition(
-        lang,
-        code,
-        column,
-        row,
-        &symbols,
-        &injections,
-    );
+    // return Parser.getHoverDocFromCodeAtPosition(
+    //     lang,
+    //     code,
+    //     column,
+    //     row,
+    //     &symbols,
+    //     &injections,
+    // );
+    return null;
 }
 
 /// TODO: most of this code is copy-pasted from the parse function (same goes for other parsers), abstract the code out somehow

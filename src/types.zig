@@ -1,6 +1,8 @@
 const std = @import("std");
 const lsp = @import("lsp");
 
+const bins = @import("parsers/bins.zig");
+
 pub const ElementKind = enum {
     HtmlElement,
     HtmlAttribute,
@@ -76,7 +78,7 @@ pub const TsNodeKind = enum {
 
 pub const SymbolInfo = struct {
     ts_query_text: []const u8,
-    support_bin: []const u8,
+    support_bin: *const bins.Bin,
     element_kind: ElementKind,
     name_trim_start: usize = 0,
 };

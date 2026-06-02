@@ -38,38 +38,45 @@ fn parse(
     start_column: u32,
     start_row: u32,
 ) []const lsp.types.Diagnostic {
-    const QUERY_IDENTIFIERS = "(identifier) @name";
-    const QUERY_JSX_TAGS = "(jsx_opening_element (identifier) @tagname)";
-    const QUERY_JSX_ATTRS = "(jsx_attribute (property_identifier) @attrname)";
+    _ = allocator; // autofix
+    _ = code; // autofix
+    _ = start_column; // autofix
+    _ = start_row; // autofix
+    // const QUERY_IDENTIFIERS = "(identifier) @name";
+    // const QUERY_JSX_TAGS = "(jsx_opening_element (identifier) @tagname)";
+    // const QUERY_JSX_ATTRS = "(jsx_attribute (property_identifier) @attrname)";
 
-    const symbols = [_]types.SymbolInfo{
-        .{
-            .element_kind = .JsApi,
-            .support_bin = bins.bin_map.get(.JsIdentifier).?,
-            .ts_query_text = QUERY_IDENTIFIERS,
-        },
-        .{
-            .element_kind = .HtmlElement,
-            .support_bin = bins.bin_map.get(.HtmlTag).?,
-            .ts_query_text = QUERY_JSX_TAGS,
-        },
-        .{
-            .element_kind = .HtmlAttribute,
-            .support_bin = bins.bin_map.get(.HtmlAttribute).?,
-            .ts_query_text = QUERY_JSX_ATTRS,
-        },
-    };
+    // const symbols = [_]types.SymbolInfo{
+    //     .{
+    //         .element_kind = .JsApi,
+    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.JsIdentifier),
+    //         .ts_query_text = QUERY_IDENTIFIERS,
+    //     },
+    //     .{
+    //         .element_kind = .HtmlElement,
+    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.HtmlTag),
+    //         .ts_query_text = QUERY_JSX_TAGS,
+    //     },
+    //     .{
+    //         .element_kind = .HtmlAttribute,
+    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.HtmlAttribute),
+    //         .ts_query_text = QUERY_JSX_ATTRS,
+    //     },
+    // };
 
-    return Parser.getDiagnosticsFromCode(
-        allocator,
-        lang_javascript,
-        code,
-        start_column,
-        start_row,
-        trimComment,
-        &symbols,
-        &.{},
-    );
+    // return Parser.getDiagnosticsFromCode(
+    //     allocator,
+    //     lang_javascript,
+    //     code,
+    //     start_column,
+    //     start_row,
+    //     trimComment,
+    //     &symbols,
+    //     &.{},
+    // );
+    //
+    //
+    return &.{};
 }
 
 fn getHoverInfoAtPosition(
@@ -77,36 +84,40 @@ fn getHoverInfoAtPosition(
     column: u32,
     row: u32,
 ) ?HoverInfo {
-    const QUERY_IDENTIFIERS = "(identifier) @name";
-    const QUERY_JSX_TAGS = "(jsx_opening_element (identifier) @tagname)"; // TODO: also look for closing elements
-    const QUERY_JSX_ATTRS = "(jsx_attribute (property_identifier) @attrname)";
+    _ = code; // autofix
+    _ = column; // autofix
+    _ = row; // autofix
+    // const QUERY_IDENTIFIERS = "(identifier) @name";
+    // const QUERY_JSX_TAGS = "(jsx_opening_element (identifier) @tagname)"; // TODO: also look for closing elements
+    // const QUERY_JSX_ATTRS = "(jsx_attribute (property_identifier) @attrname)";
 
-    const symbols = [_]types.SymbolInfo{
-        .{
-            .element_kind = .JsApi,
-            .support_bin = bins.bin_map.get(.JsIdentifier).?,
-            .ts_query_text = QUERY_IDENTIFIERS,
-        },
-        .{
-            .element_kind = .HtmlElement,
-            .support_bin = bins.bin_map.get(.HtmlTag).?,
-            .ts_query_text = QUERY_JSX_TAGS,
-        },
-        .{
-            .element_kind = .HtmlAttribute,
-            .support_bin = bins.bin_map.get(.HtmlAttribute).?,
-            .ts_query_text = QUERY_JSX_ATTRS,
-        },
-    };
+    // const symbols = [_]types.SymbolInfo{
+    //     .{
+    //         .element_kind = .JsApi,
+    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.JsIdentifier),
+    //         .ts_query_text = QUERY_IDENTIFIERS,
+    //     },
+    //     .{
+    //         .element_kind = .HtmlElement,
+    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.HtmlTag),
+    //         .ts_query_text = QUERY_JSX_TAGS,
+    //     },
+    //     .{
+    //         .element_kind = .HtmlAttribute,
+    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.HtmlAttribute),
+    //         .ts_query_text = QUERY_JSX_ATTRS,
+    //     },
+    // };
 
-    return Parser.getHoverDocFromCodeAtPosition(
-        lang_javascript,
-        code,
-        column,
-        row,
-        &symbols,
-        &.{},
-    );
+    // return Parser.getHoverDocFromCodeAtPosition(
+    //     lang_javascript,
+    //     code,
+    //     column,
+    //     row,
+    //     &symbols,
+    //     &.{},
+    // );
+    return null;
 }
 
 fn trimComment(comment_raw: []const u8) []const u8 {

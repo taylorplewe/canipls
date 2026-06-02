@@ -36,50 +36,55 @@ fn parse(
     start_column: u32,
     start_row: u32,
 ) []const lsp.types.Diagnostic {
-    const QUERY_TAGS = "(start_tag (tag_name) @tagname)";
-    const QUERY_ATTRS = "(attribute_name) @attrname";
-    const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
-    const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
-    const QUERY_FRONTMATTER_JS = "(frontmatter (frontmatter_js_block) @js)";
+    _ = allocator; // autofix
+    _ = code; // autofix
+    _ = start_column; // autofix
+    _ = start_row; // autofix
+    // const QUERY_TAGS = "(start_tag (tag_name) @tagname)";
+    // const QUERY_ATTRS = "(attribute_name) @attrname";
+    // const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
+    // const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
+    // const QUERY_FRONTMATTER_JS = "(frontmatter (frontmatter_js_block) @js)";
 
-    const symbols = [_]types.SymbolInfo{
-        .{
-            .element_kind = .HtmlAttribute,
-            .support_bin = bins.bin_map.get(.HtmlAttribute).?,
-            .ts_query_text = QUERY_ATTRS,
-        },
-        .{
-            .element_kind = .HtmlElement,
-            .support_bin = bins.bin_map.get(.HtmlTag).?,
-            .ts_query_text = QUERY_TAGS,
-        },
-    };
+    // const symbols = [_]types.SymbolInfo{
+    //     .{
+    //         .element_kind = .HtmlAttribute,
+    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.HtmlAttribute),
+    //         .ts_query_text = QUERY_ATTRS,
+    //     },
+    //     .{
+    //         .element_kind = .HtmlElement,
+    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.HtmlTag),
+    //         .ts_query_text = QUERY_TAGS,
+    //     },
+    // };
 
-    const injections = [_]types.InjectionParseInfo{
-        .{
-            .injection_parse_fn = js.JavascriptParser().parse,
-            .ts_query_text = QUERY_FRONTMATTER_JS,
-        },
-        .{
-            .injection_parse_fn = js.JavascriptParser().parse,
-            .ts_query_text = QUERY_SCRIPT_BLOCKS,
-        },
-        .{
-            .injection_parse_fn = css.CssParser().parse,
-            .ts_query_text = QUERY_STYLE_BLOCKS,
-        },
-    };
+    // const injections = [_]types.InjectionParseInfo{
+    //     .{
+    //         .injection_parse_fn = js.JavascriptParser().parse,
+    //         .ts_query_text = QUERY_FRONTMATTER_JS,
+    //     },
+    //     .{
+    //         .injection_parse_fn = js.JavascriptParser().parse,
+    //         .ts_query_text = QUERY_SCRIPT_BLOCKS,
+    //     },
+    //     .{
+    //         .injection_parse_fn = css.CssParser().parse,
+    //         .ts_query_text = QUERY_STYLE_BLOCKS,
+    //     },
+    // };
 
-    return Parser.getDiagnosticsFromCode(
-        allocator,
-        lang_astro,
-        code,
-        start_column,
-        start_row,
-        html.trimComment,
-        &symbols,
-        &injections,
-    );
+    // return Parser.getDiagnosticsFromCode(
+    //     allocator,
+    //     lang_astro,
+    //     code,
+    //     start_column,
+    //     start_row,
+    //     html.trimComment,
+    //     &symbols,
+    //     &injections,
+    // );
+    return &.{};
 }
 
 fn getHoverInfoAtPosition(
@@ -87,46 +92,50 @@ fn getHoverInfoAtPosition(
     column: u32,
     row: u32,
 ) ?HoverInfo {
-    const QUERY_TAGS = "(start_tag (tag_name) @tagname)";
-    const QUERY_ATTRS = "(attribute_name) @attrname";
-    const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
-    const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
-    const QUERY_FRONTMATTER_JS = "(frontmatter (frontmatter_js_block) @js)";
+    _ = code; // autofix
+    _ = column; // autofix
+    _ = row; // autofix
+    // const QUERY_TAGS = "(start_tag (tag_name) @tagname)";
+    // const QUERY_ATTRS = "(attribute_name) @attrname";
+    // const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
+    // const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
+    // const QUERY_FRONTMATTER_JS = "(frontmatter (frontmatter_js_block) @js)";
 
-    const symbols = [_]types.SymbolInfo{
-        .{
-            .element_kind = .HtmlAttribute,
-            .support_bin = bins.bin_map.get(.HtmlAttribute).?,
-            .ts_query_text = QUERY_ATTRS,
-        },
-        .{
-            .element_kind = .HtmlElement,
-            .support_bin = bins.bin_map.get(.HtmlTag).?,
-            .ts_query_text = QUERY_TAGS,
-        },
-    };
+    // const symbols = [_]types.SymbolInfo{
+    //     .{
+    //         .element_kind = .HtmlAttribute,
+    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.HtmlAttribute),
+    //         .ts_query_text = QUERY_ATTRS,
+    //     },
+    //     .{
+    //         .element_kind = .HtmlElement,
+    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.HtmlTag),
+    //         .ts_query_text = QUERY_TAGS,
+    //     },
+    // };
 
-    const injections = [_]types.InjectionHoverInfo{
-        .{
-            .injection_hover_fn = js.JavascriptParser().getHoverInfoAtPosition,
-            .ts_query_text = QUERY_FRONTMATTER_JS,
-        },
-        .{
-            .injection_hover_fn = js.JavascriptParser().getHoverInfoAtPosition,
-            .ts_query_text = QUERY_SCRIPT_BLOCKS,
-        },
-        .{
-            .injection_hover_fn = css.CssParser().getHoverInfoAtPosition,
-            .ts_query_text = QUERY_STYLE_BLOCKS,
-        },
-    };
+    // const injections = [_]types.InjectionHoverInfo{
+    //     .{
+    //         .injection_hover_fn = js.JavascriptParser().getHoverInfoAtPosition,
+    //         .ts_query_text = QUERY_FRONTMATTER_JS,
+    //     },
+    //     .{
+    //         .injection_hover_fn = js.JavascriptParser().getHoverInfoAtPosition,
+    //         .ts_query_text = QUERY_SCRIPT_BLOCKS,
+    //     },
+    //     .{
+    //         .injection_hover_fn = css.CssParser().getHoverInfoAtPosition,
+    //         .ts_query_text = QUERY_STYLE_BLOCKS,
+    //     },
+    // };
 
-    return Parser.getHoverDocFromCodeAtPosition(
-        lang_astro,
-        code,
-        column,
-        row,
-        &symbols,
-        &injections,
-    );
+    // return Parser.getHoverDocFromCodeAtPosition(
+    //     lang_astro,
+    //     code,
+    //     column,
+    //     row,
+    //     &symbols,
+    //     &injections,
+    // );
+    return null;
 }

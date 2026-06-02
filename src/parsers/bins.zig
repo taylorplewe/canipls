@@ -9,38 +9,6 @@ const log = std.log.scoped(.canipls);
 
 const BIN_FILE_STRING_WIDTH = 32;
 
-const Bin = struct {
-    data: []const u8,
-    sizeof_section: std.EnumArray(BinSection, usize),
-    section_addr: std.EnumArray(BinSection, usize),
-
-    /// Search this bin file from feature index `index_start` (inclusive) to `index_end` (exclusive) for `identifier_buf`; return index of feature if found
-    fn searchRangeForSymbol(
-        self: *const Bin,
-        index_start: usize,
-        index_end: usize,
-        name_padded: []const u8,
-    ) ?usize {
-        for (index_start..index_end) |i| {
-            const next_identifier_offset = self.section_addr.get(.Identifier) + (i * sizeof_entry_per_bin_section.get(.Identifier));
-            const name_in_bin = self.data[next_identifier_offset..][0..BIN_FILE_STRING_WIDTH];
-
-            // TODO: simd vector search
-            if (std.mem.eql(u8, name_padded, name_in_bin)) return i;
-        }
-        return null;
-    }
-
-    fn getAlignedValueByIndex(
-        self: *const Bin,
-        index: usize,
-        comptime S: BinSection,
-    ) typeof_entry_per_section.get(S) {
-        const val_addr = self.section_addr.get(S) + (index * sizeof_entry_per_bin_section.get(S));
-        return utils.getValueFromDataAligned(typeof_entry_per_section.get(S), self.data[val_addr..]);
-    }
-};
-
 const BinSection = enum {
     Support,
     CiuIdAddr,
@@ -59,6 +27,47 @@ const typeof_entry_per_section: std.EnumArray(BinSection, type) = .init(.{
     .TreeSitterSyntaxNodeType = u8,
     .Identifier = [BIN_FILE_STRING_WIDTH]u8,
 });
+const sizeof_entry_per_section: std.EnumArray(BinSection, usize) = blk: {
+    var sizes: std.EnumArray(BinSection, usize) = .initFill(0);
+    for (typeof_entry_per_section.values, 0..) |T, i| {
+        sizes.set(@enumFromInt(i), @sizeOf(T));
+    }
+    break :blk sizes;
+};
+// TEMP: shouldn't need to be public after child nodes refactor
+pub const Bin = struct {
+    data: []const u8,
+    num_features_total: usize,
+    num_features_toplevel: usize,
+    sizeof_section: std.EnumArray(BinSection, usize),
+    section_addr: std.EnumArray(BinSection, usize),
+
+    /// Search this bin file from feature index `index_start` (inclusive) to `index_end` (exclusive) for `identifier_buf`; return index of feature if found
+    fn searchRangeForSymbol(
+        self: *const Bin,
+        index_start: usize,
+        index_end: usize,
+        name_padded: []const u8,
+    ) ?usize {
+        for (index_start..index_end) |i| {
+            const next_identifier_offset = self.section_addr.get(.Identifier) + (i * sizeof_entry_per_section.get(.Identifier));
+            const name_in_bin = self.data[next_identifier_offset..][0..BIN_FILE_STRING_WIDTH];
+
+            // TODO: simd vector search
+            if (std.mem.eql(u8, name_padded, name_in_bin)) return i;
+        }
+        return null;
+    }
+
+    fn getAlignedValueByIndex(
+        self: *const Bin,
+        index: usize,
+        comptime S: BinSection,
+    ) typeof_entry_per_section.get(S) {
+        const val_addr = self.section_addr.get(S) + (index * sizeof_entry_per_section.get(S));
+        return utils.getValueFromDataAligned(typeof_entry_per_section.get(S), self.data[val_addr..]);
+    }
+};
 
 var bin_kind_to_file_path_map: std.EnumMap(types.TsNodeKind, []const u8) = .init(.{
     .HtmlTag = "html_tags.bin",
@@ -70,12 +79,11 @@ var bin_kind_to_file_path_map: std.EnumMap(types.TsNodeKind, []const u8) = .init
 });
 fn getBinKindFromPath(path_to_check: []const u8) ?types.TsNodeKind {
     var it = bin_kind_to_file_path_map.iterator();
-    while (it.next()) |entry| {
+    while (it.next()) |entry|
         if (std.mem.eql(u8, path_to_check, entry.value.*)) return entry.key;
-    }
     return null;
 }
-pub var bin_map: std.EnumMap(types.TsNodeKind, []const u8) = .init(.{});
+pub var bin_map: std.EnumMap(types.TsNodeKind, Bin) = .init(.{});
 
 const InitBinsError = error{
     NoLocalAppDataEnv,
@@ -192,7 +200,32 @@ pub fn init(server_allocator: std.mem.Allocator, io: std.Io, environ_map: *std.p
     while (try canipls_bins_dir_it.next(io)) |entry| {
         const bin = try canipls_bins_dir.readFileAlloc(io, entry.name, server_allocator, .unlimited);
         const bin_kind = getBinKindFromPath(entry.name).?;
-        bin_map.put(bin_kind, bin);
+
+        const num_features_total = utils.getValueFromDataAligned(u32, bin[4..]);
+        const num_features_toplevel = utils.getValueFromDataAligned(u32, bin[8..]);
+        const sizeof_bin_sections: std.EnumArray(BinSection, usize) = blk: {
+            var sizes: std.EnumArray(BinSection, usize) = .initFill(0);
+            for (sizeof_entry_per_section.values, 0..) |size, i|
+                sizes.set(@enumFromInt(i), size * num_features_total);
+            break :blk sizes;
+        };
+        const section_addrs: std.EnumArray(BinSection, usize) = blk: {
+            var addrs: std.EnumArray(BinSection, usize) = .initFill(0);
+            var current_pos: usize = sizeof_header;
+            for (sizeof_bin_sections.values, 0..) |size, i| {
+                addrs.set(@enumFromInt(i), current_pos);
+                current_pos += size;
+            }
+            break :blk addrs;
+        };
+
+        bin_map.put(bin_kind, .{
+            .data = bin,
+            .num_features_total = num_features_total,
+            .num_features_toplevel = num_features_toplevel,
+            .sizeof_section = sizeof_bin_sections,
+            .section_addr = section_addrs,
+        });
 
         // check that this version of canipls is compatible with every bin file
         const min_compatible_canipls_version = utils.getValueFromDataAligned(u32, bin[0..]);
@@ -226,64 +259,11 @@ pub fn deinit(
     server_allocator: std.mem.Allocator,
 ) void {
     for (bin_map.values) |bin| {
-        server_allocator.free(bin);
+        server_allocator.free(bin.data);
     }
 }
 
-var sizeof_entry_per_bin_section: std.EnumArray(BinSection, usize) = blk: {
-    var sizes: std.EnumArray(BinSection, usize) = .initFill(0);
-    for (typeof_entry_per_section.values, 0..) |T, i| {
-        sizes.set(@enumFromInt(i), @sizeOf(T));
-    }
-    break :blk sizes;
-};
 var identifier_buf: [BIN_FILE_STRING_WIDTH]u8 = undefined;
-pub fn getSupportPercentageAndCiuIdForIdentifierFromBin(
-    identifier_name: []const u8,
-    bin: []const u8,
-) ?struct { f32, []const u8 } {
-    if (identifier_name.len > BIN_FILE_STRING_WIDTH) return null;
-
-    // make identifier name in question 32-chars wide, padded with 0's
-    @memcpy(identifier_buf[0..identifier_name.len], identifier_name);
-    if (identifier_name.len < 32)
-        @memset(identifier_buf[identifier_name.len..], 0);
-
-    const num_features_total = utils.getValueFromDataAligned(u32, bin[4..]);
-    const num_features_toplevel = utils.getValueFromDataAligned(u32, bin[8..]);
-
-    const sizeof_bin_sections: std.EnumArray(BinSection, usize) = blk: {
-        var sizes: std.EnumArray(BinSection, usize) = .initFill(0);
-        for (sizeof_entry_per_bin_section.values, 0..) |size, i| {
-            sizes.set(@enumFromInt(i), size * num_features_total);
-        }
-        break :blk sizes;
-    };
-
-    const section_addrs: std.EnumArray(BinSection, usize) = blk: {
-        var addrs: std.EnumArray(BinSection, usize) = .initFill(0);
-        var current_pos: usize = sizeof_header;
-        for (sizeof_bin_sections.values, 0..) |size, i| {
-            addrs.set(@enumFromInt(i), current_pos);
-            current_pos += size;
-        }
-        break :blk addrs;
-    };
-
-    const my_bin: Bin = .{
-        .data = bin,
-        .sizeof_section = sizeof_bin_sections,
-        .section_addr = section_addrs,
-    };
-
-    const feature_index = my_bin.searchRangeForSymbol(0, num_features_toplevel, &identifier_buf) orelse return null;
-    const ciu_id_addr = my_bin.getAlignedValueByIndex(feature_index, .CiuIdAddr);
-    const ciu_id_len = bin[ciu_id_addr];
-    const ciu_id = bin[ciu_id_addr + 1 ..][0..ciu_id_len];
-    const support_percentage = my_bin.getAlignedValueByIndex(feature_index, .Support);
-    return .{ support_percentage, ciu_id };
-}
-
 pub const BinSearchSymbolInfo = struct {
     name: []const u8,
     node_kind: types.TsNodeKind,
@@ -294,34 +274,9 @@ pub const BinSearchResult = struct {
 };
 const sizeof_header = @sizeOf(u32) * 4;
 /// Given a syntactic stack of symbols, search a canipls bin file for the bottom-most symbol in the stack
-pub fn getSymbolSupportInfoFromBin(symbol_stack: []BinSearchSymbolInfo) ?BinSearchResult {
+pub fn getSymbolSupportInfoFromBin(symbol_stack: []const BinSearchSymbolInfo) ?BinSearchResult {
     // get target bin file from top-level symbol
     const bin = bin_map.get(symbol_stack[0].node_kind) orelse return null;
-    const num_features_total = utils.getValueFromDataAligned(u32, bin[4..]);
-    const num_features_toplevel = utils.getValueFromDataAligned(u32, bin[8..]);
-
-    const sizeof_bin_sections: std.EnumArray(BinSection, usize) = blk: {
-        var sizes: std.EnumArray(BinSection, usize) = .initFill(0);
-        for (sizeof_entry_per_bin_section.values, 0..) |size, i|
-            sizes.set(@enumFromInt(i), size * num_features_total);
-        break :blk sizes;
-    };
-
-    const section_addrs: std.EnumArray(BinSection, usize) = blk: {
-        var addrs: std.EnumArray(BinSection, usize) = .initFill(0);
-        var current_pos: usize = sizeof_header;
-        for (sizeof_bin_sections.values, 0..) |size, i| {
-            addrs.set(@enumFromInt(i), current_pos);
-            current_pos += size.value.*;
-        }
-        break :blk addrs;
-    };
-
-    const my_bin: Bin = .{
-        .data = bin,
-        .sizeof_section = sizeof_bin_sections,
-        .section_addr = section_addrs,
-    };
 
     var parent_feature_index: ?usize = null;
     for (symbol_stack, 0..) |symbol_info, symbol_stack_index| {
@@ -335,53 +290,35 @@ pub fn getSymbolSupportInfoFromBin(symbol_stack: []BinSearchSymbolInfo) ?BinSear
 
         // toplevel feature?
         if (parent_feature_index == null) {
-            parent_feature_index = searchBinRangeForSymbol(
-                bin,
-                &section_addrs,
+            parent_feature_index = bin.searchRangeForSymbol(
                 0,
-                num_features_toplevel,
+                bin.num_features_toplevel,
+                &identifier_buf,
             ) orelse return null;
         } else {
-            // const first_child_index_addr = section_addrs.get(.FirstChildIndex) + (parent_feature_index.? * sizeof_bin_sections.get(.FirstChildIndex));
-            const num_children_addr = section_addrs.get(.NumChildren) + (parent_feature_index.? * sizeof_bin_sections.get(.NumChildren));
-            // const first_child_index = utils.getValueFromDataAligned(u32, bin[first_child_index_addr..]);
-            const num_children = utils.getValueFromDataAligned(u16, bin[num_children_addr..]);
-            const first_child_index = my_bin.getAlignedValueByIndex(parent_feature_index.?, .FirstChildIndex);
+            const num_children = bin.getAlignedValueByIndex(parent_feature_index.?, .NumChildren);
+            const first_child_index = bin.getAlignedValueByIndex(parent_feature_index.?, .FirstChildIndex);
 
-            parent_feature_index = searchBinRangeForSymbol(
-                bin,
-                &section_addrs,
+            if (std.mem.eql(u8, symbol_stack[0].name, "button") and symbol_stack_index == 1) {
+                log.info("num children for button: {d}", .{num_children});
+                log.info("first child index for button: {d}", .{first_child_index});
+            }
+
+            parent_feature_index = bin.searchRangeForSymbol(
                 first_child_index,
                 first_child_index + num_children,
+                &identifier_buf,
             ) orelse return null;
         }
         // feature we're looking for? (bottom of stack)
         if (symbol_stack_index == symbol_stack.len - 1) {
-            const support_addr = section_addrs.get(.Support) + (parent_feature_index.? * sizeof_bin_sections.get(.Support));
-            const support = utils.getValueFromDataAligned(f32, bin[support_addr..]);
-            const ciu_id_addr = section_addrs.get(.CiuIdAddr) + (parent_feature_index.? * sizeof_bin_sections.get(.CiuIdAddr));
-            const ciu_id_len = bin[ciu_id_addr];
-            const ciu_id = bin[ciu_id_addr + 1 .. ciu_id_addr + 1 + ciu_id_len];
+            const support = bin.getAlignedValueByIndex(parent_feature_index.?, .Support);
+            const ciu_id_addr = bin.getAlignedValueByIndex(parent_feature_index.?, .CiuIdAddr);
+            const ciu_id_len = bin.data[ciu_id_addr];
+            const ciu_id = bin.data[ciu_id_addr + 1 .. ciu_id_addr + 1 + ciu_id_len];
             return .{ .support = support, .ciu_id = ciu_id };
         }
     }
 
-    return null;
-}
-
-/// Search `bin` from feature index `index_start` (inclusive) to `index_end` (exclusive) for `identifier_buf`; return index of feature if found
-fn searchBinRangeForSymbol(
-    bin: []const u8,
-    section_addrs: *std.EnumArray(BinSection, usize),
-    index_start: usize,
-    index_end: usize,
-) ?usize {
-    for (index_start..index_end) |i| {
-        const next_identifier_offset = section_addrs.get(.Identifier) + (i * sizeof_entry_per_bin_section.get(.Identifier));
-        const name_in_bin = bin[next_identifier_offset..][0..BIN_FILE_STRING_WIDTH];
-
-        // TODO: simd vector search
-        if (std.mem.eql(u8, &identifier_buf, name_in_bin)) return i;
-    }
     return null;
 }
