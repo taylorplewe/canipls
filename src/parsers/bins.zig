@@ -3,36 +3,28 @@ const builtin = @import("builtin");
 const build_options = @import("build_options");
 
 const utils = @import("../utils.zig");
+const types = @import("../types.zig");
 
 const log = std.log.scoped(.canipls);
 
 const BIN_FILE_STRING_WIDTH = 32;
 
-pub const BinKind = enum {
-    HtmlTags,
-    HtmlAttributes,
-    CssProps,
-    CssSelectors,
-    CssAtRules,
-    JsIdentifiers,
-};
-
-var bin_kind_to_file_path_map: std.EnumMap(BinKind, []const u8) = .init(.{
-    .HtmlTags = "html_tags.bin",
-    .HtmlAttributes = "html_attributes.bin",
-    .CssProps = "css_props.bin",
-    .CssSelectors = "css_selectors.bin",
-    .CssAtRules = "css_at_rules.bin",
-    .JsIdentifiers = "js_identifiers.bin",
+var bin_kind_to_file_path_map: std.EnumMap(types.TsNodeKind, []const u8) = .init(.{
+    .HtmlTag = "html_tags.bin",
+    .HtmlAttribute = "html_attributes.bin",
+    .CssProperty = "css_props.bin",
+    .CssSelector = "css_selectors.bin",
+    .CssAtRule = "css_at_rules.bin",
+    .JsIdentifier = "js_identifiers.bin",
 });
-fn getBinKindFromPath(path_to_check: []const u8) ?BinKind {
+fn getBinKindFromPath(path_to_check: []const u8) ?types.TsNodeKind {
     var it = bin_kind_to_file_path_map.iterator();
     while (it.next()) |entry| {
         if (std.mem.eql(u8, path_to_check, entry.value.*)) return entry.key;
     }
     return null;
 }
-pub var bin_map: std.EnumMap(BinKind, []const u8) = .init(.{});
+pub var bin_map: std.EnumMap(types.TsNodeKind, []const u8) = .init(.{});
 
 const InitBinsError = error{
     NoLocalAppDataEnv,
@@ -72,7 +64,7 @@ pub fn init(server_allocator: std.mem.Allocator, io: std.Io, environ_map: *std.p
     // stat any file inside that dir to see when we last fetched
     fetch_new_tarball_if_out_of_date: {
         // check to make sure we have all necessary files, and none are out of date
-        var checked_files: std.EnumMap(BinKind, bool) = .initFullWithDefault(false, .{});
+        var checked_files: std.EnumMap(types.TsNodeKind, bool) = .init(.{});
         var oldest_timestamp_ms: i64 = now_ms;
         var canipls_bins_dir_iterator = canipls_bins_dir.iterateAssumeFirstIteration();
         while (try canipls_bins_dir_iterator.next(io)) |entry| {
@@ -82,6 +74,21 @@ pub fn init(server_allocator: std.mem.Allocator, io: std.Io, environ_map: *std.p
             if (getBinKindFromPath(entry.name)) |kind| checked_files.put(kind, true);
         }
         var are_all_files_present = true;
+        var bin_kind_map = bin_kind_to_file_path_map.iterator();
+        while (bin_kind_map.next()) |entry| {
+            if (checked_files.get(entry.key)) |checked_file| {
+                if (checked_file) {
+                    are_all_files_present = false;
+                    break;
+                }
+            } else {
+                are_all_files_present = false;
+                break;
+            }
+        }
+
+        log.info("all files here!", .{});
+
         var checked_files_it = checked_files.iterator();
         while (checked_files_it.next()) |entry| {
             if (entry.value.* == false) are_all_files_present = false;
@@ -204,7 +211,6 @@ pub fn getSupportPercentageAndCiuIdForIdentifierFromBin(
 
     const num_features_total = utils.getValueFromData(u32, bin[4..]);
     const num_features_toplevel = utils.getValueFromData(u32, bin[8..]);
-    const sizeof_header = @sizeOf(u32) * 4;
 
     var sizeof_bin_sections: std.EnumArray(BinSection, usize) = blk: {
         var ea: std.EnumArray(BinSection, usize) = .initFill(0);
@@ -246,6 +252,114 @@ pub fn getSupportPercentageAndCiuIdForIdentifierFromBin(
             const support_percentage: f32 = utils.getValueFromData(f32, bin[next_support_offset..]);
             return .{ support_percentage, ciu_id };
         }
+    }
+    return null;
+}
+
+pub const BinSearchSymbolInfo = struct {
+    name: []const u8,
+    node_kind: types.TsNodeKind,
+};
+pub const BinSearchResult = struct {
+    support: f32,
+    ciu_id: []const u8,
+};
+const sizeof_header = @sizeOf(u32) * 4;
+/// Given a syntactic stack of symbols, search a canipls bin file for the bottom-most symbol in the stack
+pub fn getSymbolSupportInfoFromBin(symbol_stack: []BinSearchSymbolInfo) ?BinSearchResult {
+    // get target bin file from top-level symbol
+    const bin = bin_map.get(symbol_stack[0].node_kind) orelse return null;
+    const num_features_total = utils.getValueFromData(u32, bin[4..]);
+    const num_features_toplevel = utils.getValueFromData(u32, bin[8..]);
+
+    var sizeof_bin_sections: std.EnumArray(BinSection, usize) = blk: {
+        var ea: std.EnumArray(BinSection, usize) = .initFill(0);
+        var it = sizeof_entry_per_bin_section.iterator();
+        var index: usize = 0;
+        while (it.next()) |sizeof_entry| {
+            ea.set(@enumFromInt(index), sizeof_entry.value.* * num_features_total);
+            index += 1;
+        }
+        break :blk ea;
+    };
+
+    const section_addrs: std.EnumArray(BinSection, usize) = blk: {
+        var ea: std.EnumArray(BinSection, usize) = .initFill(0);
+        var current_pos: usize = sizeof_header;
+        var it = sizeof_bin_sections.iterator();
+        var index: usize = 0;
+        while (it.next()) |sizeof_entry| {
+            ea.set(@enumFromInt(index), current_pos);
+            current_pos += sizeof_entry.value.*;
+            index += 1;
+        }
+        break :blk ea;
+    };
+
+    var parent_feature_index: ?usize = null;
+    for (symbol_stack, 0..) |symbol_info, symbol_stack_index| {
+        const name = symbol_info.name;
+        if (name.len > BIN_FILE_STRING_WIDTH) return null;
+
+        // make identifier name in question 32-chars wide, padded with 0's
+        @memcpy(identifier_buf[0..name.len], name);
+        if (name.len < 32)
+            @memset(identifier_buf[name.len..], 0);
+
+        // toplevel feature?
+        if (parent_feature_index == null) {
+            parent_feature_index = searchBinRangeForSymbol(
+                bin,
+                &section_addrs,
+                0,
+                num_features_toplevel,
+            ) orelse return null;
+        } else {
+            const first_child_index_addr = section_addrs.get(.FirstChildIndex) + (parent_feature_index.? * sizeof_bin_sections.get(.FirstChildIndex));
+            const num_children_addr = section_addrs.get(.NumChildren) + (parent_feature_index.? * sizeof_bin_sections.get(.NumChildren));
+            const first_child_index = utils.getValueFromData(u32, bin[first_child_index_addr..]);
+            const num_children = utils.getValueFromData(u16, bin[num_children_addr..]);
+
+            if (symbol_stack_index < symbol_stack.len - 1) {
+                parent_feature_index = searchBinRangeForSymbol(
+                    bin,
+                    &section_addrs,
+                    first_child_index,
+                    first_child_index + num_children,
+                ) orelse return null;
+            } else {
+                const target_feature_index = searchBinRangeForSymbol(
+                    bin,
+                    &section_addrs,
+                    first_child_index,
+                    first_child_index + num_children,
+                ) orelse return null;
+                const support_addr = section_addrs.get(.Support) + (target_feature_index.? * sizeof_bin_sections.get(.Support));
+                const support = utils.getValueFromData(f32, bin[support_addr..]);
+                const ciu_id_addr = section_addrs.get(.CiuIdAddr) + (target_feature_index.? * sizeof_bin_sections.get(.CiuIdAddr));
+                const ciu_id_len = bin[ciu_id_addr];
+                const ciu_id = bin[ciu_id_addr + 1 .. ciu_id_addr + 1 + ciu_id_len];
+                return .{ .support = support, .ciu_id = ciu_id };
+            }
+        }
+    }
+
+    return null;
+}
+
+/// Search `bin` from feature index `index_start` (inclusive) to `index_end` (exclusive) for `identifier_buf`; return index of feature if found
+fn searchBinRangeForSymbol(
+    bin: []const u8,
+    section_addrs: *std.EnumArray(BinSection, usize),
+    index_start: usize,
+    index_end: usize,
+) ?usize {
+    for (index_start..index_end) |i| {
+        const next_identifier_offset = section_addrs.get(.Identifier) + (i * sizeof_entry_per_bin_section.get(.Identifier));
+        const name_in_bin = bin[next_identifier_offset..][0..BIN_FILE_STRING_WIDTH];
+
+        // TODO: simd vector search
+        if (std.mem.eql(u8, &identifier_buf, name_in_bin)) return i;
     }
     return null;
 }

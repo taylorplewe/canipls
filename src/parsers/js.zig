@@ -45,17 +45,17 @@ fn parse(
     const symbols = [_]types.SymbolInfo{
         .{
             .element_kind = .JsApi,
-            .support_bin = bins.bin_map.get(.JsIdentifiers).?,
+            .support_bin = bins.bin_map.get(.JsIdentifier).?,
             .ts_query_text = QUERY_IDENTIFIERS,
         },
         .{
             .element_kind = .HtmlElement,
-            .support_bin = bins.bin_map.get(.HtmlTags).?,
+            .support_bin = bins.bin_map.get(.HtmlTag).?,
             .ts_query_text = QUERY_JSX_TAGS,
         },
         .{
             .element_kind = .HtmlAttribute,
-            .support_bin = bins.bin_map.get(.HtmlAttributes).?,
+            .support_bin = bins.bin_map.get(.HtmlAttribute).?,
             .ts_query_text = QUERY_JSX_ATTRS,
         },
     };
@@ -84,17 +84,17 @@ fn getHoverInfoAtPosition(
     const symbols = [_]types.SymbolInfo{
         .{
             .element_kind = .JsApi,
-            .support_bin = bins.bin_map.get(.JsIdentifiers).?,
+            .support_bin = bins.bin_map.get(.JsIdentifier).?,
             .ts_query_text = QUERY_IDENTIFIERS,
         },
         .{
             .element_kind = .HtmlElement,
-            .support_bin = bins.bin_map.get(.HtmlTags).?,
+            .support_bin = bins.bin_map.get(.HtmlTag).?,
             .ts_query_text = QUERY_JSX_TAGS,
         },
         .{
             .element_kind = .HtmlAttribute,
-            .support_bin = bins.bin_map.get(.HtmlAttributes).?,
+            .support_bin = bins.bin_map.get(.HtmlAttribute).?,
             .ts_query_text = QUERY_JSX_ATTRS,
         },
     };

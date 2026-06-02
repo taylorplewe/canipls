@@ -45,12 +45,12 @@ fn parse(
     const symbols = [_]types.SymbolInfo{
         .{
             .element_kind = .HtmlAttribute,
-            .support_bin = bins.bin_map.get(.HtmlAttributes).?,
+            .support_bin = bins.bin_map.get(.HtmlAttribute).?,
             .ts_query_text = QUERY_ATTRS,
         },
         .{
             .element_kind = .HtmlElement,
-            .support_bin = bins.bin_map.get(.HtmlTags).?,
+            .support_bin = bins.bin_map.get(.HtmlTag).?,
             .ts_query_text = QUERY_TAGS,
         },
     };
@@ -96,12 +96,12 @@ fn getHoverInfoAtPosition(
     const symbols = [_]types.SymbolInfo{
         .{
             .element_kind = .HtmlAttribute,
-            .support_bin = bins.bin_map.get(.HtmlAttributes).?,
+            .support_bin = bins.bin_map.get(.HtmlAttribute).?,
             .ts_query_text = QUERY_ATTRS,
         },
         .{
             .element_kind = .HtmlElement,
-            .support_bin = bins.bin_map.get(.HtmlTags).?,
+            .support_bin = bins.bin_map.get(.HtmlTag).?,
             .ts_query_text = QUERY_TAGS,
         },
     };

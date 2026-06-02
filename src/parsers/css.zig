@@ -42,23 +42,23 @@ fn parse(
     const symbols = [_]types.SymbolInfo{
         .{
             .element_kind = .CssProp,
-            .support_bin = bins.bin_map.get(.CssProps).?,
+            .support_bin = bins.bin_map.get(.CssProperty).?,
             .ts_query_text = QUERY_PROPS,
         },
         .{
             .element_kind = .CssAtRule,
-            .support_bin = bins.bin_map.get(.CssAtRules).?,
+            .support_bin = bins.bin_map.get(.CssAtRule).?,
             .ts_query_text = QUERY_AT_RULES,
             .name_trim_start = 1,
         },
         .{
             .element_kind = .CssSelector,
-            .support_bin = bins.bin_map.get(.CssSelectors).?,
+            .support_bin = bins.bin_map.get(.CssSelector).?,
             .ts_query_text = QUERY_PSEUDO_CLASS_SELECTORS,
         },
         .{
             .element_kind = .CssSelector,
-            .support_bin = bins.bin_map.get(.CssSelectors).?,
+            .support_bin = bins.bin_map.get(.CssSelector).?,
             .ts_query_text = QUERY_PSEUDO_ELEMENT_SELECTORS,
         },
     };
@@ -88,23 +88,23 @@ fn getHoverInfoAtPosition(
     const symbols = [_]types.SymbolInfo{
         .{
             .element_kind = .CssProp,
-            .support_bin = bins.bin_map.get(.CssProps).?,
+            .support_bin = bins.bin_map.get(.CssProperty).?,
             .ts_query_text = QUERY_PROPS,
         },
         .{
             .element_kind = .CssAtRule,
-            .support_bin = bins.bin_map.get(.CssAtRules).?,
+            .support_bin = bins.bin_map.get(.CssAtRule).?,
             .ts_query_text = QUERY_AT_RULES,
             .name_trim_start = 1,
         },
         .{
             .element_kind = .CssSelector,
-            .support_bin = bins.bin_map.get(.CssSelectors).?,
+            .support_bin = bins.bin_map.get(.CssSelector).?,
             .ts_query_text = QUERY_PSEUDO_CLASS_SELECTORS,
         },
         .{
             .element_kind = .CssSelector,
-            .support_bin = bins.bin_map.get(.CssSelectors).?,
+            .support_bin = bins.bin_map.get(.CssSelector).?,
             .ts_query_text = QUERY_PSEUDO_ELEMENT_SELECTORS,
         },
     };
