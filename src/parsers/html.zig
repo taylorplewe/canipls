@@ -235,8 +235,8 @@ pub fn parseHtmlAndReturnDiagnostics(
                 if (tag_name.len < 32)
                     @memset(identifier_buf[tag_name.len..], 0);
 
-                const num_features_total = utils.getValueFromData(u32, bin[4..]);
-                const num_features_toplevel = utils.getValueFromData(u32, bin[8..]);
+                const num_features_total = utils.getValueFromDataAligned(u32, bin[4..]);
+                const num_features_toplevel = utils.getValueFromDataAligned(u32, bin[8..]);
                 const sizeof_header = @sizeOf(u32) * 4;
 
                 var sizeof_bin_sections: std.EnumArray(BinSection, usize) = blk: {
@@ -270,13 +270,13 @@ pub fn parseHtmlAndReturnDiagnostics(
                     const next_ciu_id_addr_offset = section_addrs.get(.CiuIdAddr) + (i * sizeof_entry_per_bin_section.get(.CiuIdAddr));
 
                     const my_name = bin[next_identifier_offset..][0..32];
-                    const ciu_id_addr = utils.getValueFromData(u32, bin[next_ciu_id_addr_offset..]);
+                    const ciu_id_addr = utils.getValueFromDataAligned(u32, bin[next_ciu_id_addr_offset..]);
                     const ciu_id_len = bin[ciu_id_addr];
                     const ciu_id = bin[ciu_id_addr + 1 ..][0..ciu_id_len];
 
                     // TODO: simd vector search
                     if (std.mem.eql(u8, &identifier_buf, my_name)) {
-                        const support_percentage: f32 = utils.getValueFromData(f32, bin[next_support_offset..]);
+                        const support_percentage: f32 = utils.getValueFromDataAligned(f32, bin[next_support_offset..]);
                         break :percentage .{ support_percentage, ciu_id };
                     }
                 }

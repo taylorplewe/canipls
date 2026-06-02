@@ -9,6 +9,57 @@ const log = std.log.scoped(.canipls);
 
 const BIN_FILE_STRING_WIDTH = 32;
 
+const Bin = struct {
+    data: []const u8,
+    sizeof_section: std.EnumArray(BinSection, usize),
+    section_addr: std.EnumArray(BinSection, usize),
+
+    /// Search this bin file from feature index `index_start` (inclusive) to `index_end` (exclusive) for `identifier_buf`; return index of feature if found
+    fn searchRangeForSymbol(
+        self: *const Bin,
+        index_start: usize,
+        index_end: usize,
+        name_padded: []const u8,
+    ) ?usize {
+        for (index_start..index_end) |i| {
+            const next_identifier_offset = self.section_addr.get(.Identifier) + (i * sizeof_entry_per_bin_section.get(.Identifier));
+            const name_in_bin = self.data[next_identifier_offset..][0..BIN_FILE_STRING_WIDTH];
+
+            // TODO: simd vector search
+            if (std.mem.eql(u8, name_padded, name_in_bin)) return i;
+        }
+        return null;
+    }
+
+    fn getAlignedValueByIndex(
+        self: *const Bin,
+        index: usize,
+        comptime S: BinSection,
+    ) typeof_entry_per_section.get(S) {
+        const val_addr = self.section_addr.get(S) + (index * sizeof_entry_per_bin_section.get(S));
+        return utils.getValueFromDataAligned(typeof_entry_per_section.get(S), self.data[val_addr..]);
+    }
+};
+
+const BinSection = enum {
+    Support,
+    CiuIdAddr,
+    Reserved,
+    FirstChildIndex,
+    NumChildren,
+    TreeSitterSyntaxNodeType,
+    Identifier,
+};
+const typeof_entry_per_section: std.EnumArray(BinSection, type) = .init(.{
+    .Support = f32,
+    .CiuIdAddr = u32,
+    .Reserved = u32,
+    .FirstChildIndex = u32,
+    .NumChildren = u16,
+    .TreeSitterSyntaxNodeType = u8,
+    .Identifier = [BIN_FILE_STRING_WIDTH]u8,
+});
+
 var bin_kind_to_file_path_map: std.EnumMap(types.TsNodeKind, []const u8) = .init(.{
     .HtmlTag = "html_tags.bin",
     .HtmlAttribute = "html_attributes.bin",
@@ -144,7 +195,7 @@ pub fn init(server_allocator: std.mem.Allocator, io: std.Io, environ_map: *std.p
         bin_map.put(bin_kind, bin);
 
         // check that this version of canipls is compatible with every bin file
-        const min_compatible_canipls_version = utils.getValueFromData(u32, bin[0..]);
+        const min_compatible_canipls_version = utils.getValueFromDataAligned(u32, bin[0..]);
         _ = min_compatible_canipls_version;
         const is_canipls_version_compatible =
             if (bin[0] > build_options.version.major)
@@ -179,24 +230,13 @@ pub fn deinit(
     }
 }
 
-const BinSection = enum {
-    Support,
-    CiuIdAddr,
-    Reserved,
-    FirstChildIndex,
-    NumChildren,
-    TreeSitterSyntaxNodeType,
-    Identifier,
+var sizeof_entry_per_bin_section: std.EnumArray(BinSection, usize) = blk: {
+    var sizes: std.EnumArray(BinSection, usize) = .initFill(0);
+    for (typeof_entry_per_section.values, 0..) |T, i| {
+        sizes.set(@enumFromInt(i), @sizeOf(T));
+    }
+    break :blk sizes;
 };
-var sizeof_entry_per_bin_section = std.EnumArray(BinSection, usize).init(.{
-    .Support = @sizeOf(f32),
-    .CiuIdAddr = @sizeOf(u32),
-    .Reserved = @sizeOf(u32),
-    .FirstChildIndex = @sizeOf(u32),
-    .NumChildren = @sizeOf(u16),
-    .TreeSitterSyntaxNodeType = @sizeOf(u8),
-    .Identifier = BIN_FILE_STRING_WIDTH,
-});
 var identifier_buf: [BIN_FILE_STRING_WIDTH]u8 = undefined;
 pub fn getSupportPercentageAndCiuIdForIdentifierFromBin(
     identifier_name: []const u8,
@@ -209,51 +249,39 @@ pub fn getSupportPercentageAndCiuIdForIdentifierFromBin(
     if (identifier_name.len < 32)
         @memset(identifier_buf[identifier_name.len..], 0);
 
-    const num_features_total = utils.getValueFromData(u32, bin[4..]);
-    const num_features_toplevel = utils.getValueFromData(u32, bin[8..]);
+    const num_features_total = utils.getValueFromDataAligned(u32, bin[4..]);
+    const num_features_toplevel = utils.getValueFromDataAligned(u32, bin[8..]);
 
-    var sizeof_bin_sections: std.EnumArray(BinSection, usize) = blk: {
-        var ea: std.EnumArray(BinSection, usize) = .initFill(0);
-        var it = sizeof_entry_per_bin_section.iterator();
-        var index: usize = 0;
-        while (it.next()) |sizeof_entry| {
-            ea.set(@enumFromInt(index), sizeof_entry.value.* * num_features_total);
-            index += 1;
+    const sizeof_bin_sections: std.EnumArray(BinSection, usize) = blk: {
+        var sizes: std.EnumArray(BinSection, usize) = .initFill(0);
+        for (sizeof_entry_per_bin_section.values, 0..) |size, i| {
+            sizes.set(@enumFromInt(i), size * num_features_total);
         }
-        break :blk ea;
+        break :blk sizes;
     };
 
     const section_addrs: std.EnumArray(BinSection, usize) = blk: {
-        var ea: std.EnumArray(BinSection, usize) = .initFill(0);
+        var addrs: std.EnumArray(BinSection, usize) = .initFill(0);
         var current_pos: usize = sizeof_header;
-        var it = sizeof_bin_sections.iterator();
-        var index: usize = 0;
-        while (it.next()) |sizeof_entry| {
-            ea.set(@enumFromInt(index), current_pos);
-            current_pos += sizeof_entry.value.*;
-            index += 1;
+        for (sizeof_bin_sections.values, 0..) |size, i| {
+            addrs.set(@enumFromInt(i), current_pos);
+            current_pos += size;
         }
-        break :blk ea;
+        break :blk addrs;
     };
 
-    // search for feature
-    for (0..num_features_toplevel) |i| {
-        const next_support_offset = section_addrs.get(.Support) + (i * sizeof_entry_per_bin_section.get(.Support));
-        const next_identifier_offset = section_addrs.get(.Identifier) + (i * sizeof_entry_per_bin_section.get(.Identifier));
-        const next_ciu_id_addr_offset = section_addrs.get(.CiuIdAddr) + (i * sizeof_entry_per_bin_section.get(.CiuIdAddr));
+    const my_bin: Bin = .{
+        .data = bin,
+        .sizeof_section = sizeof_bin_sections,
+        .section_addr = section_addrs,
+    };
 
-        const name = bin[next_identifier_offset..][0..BIN_FILE_STRING_WIDTH];
-        const ciu_id_addr = utils.getValueFromData(u32, bin[next_ciu_id_addr_offset..]);
-        const ciu_id_len = bin[ciu_id_addr];
-        const ciu_id = bin[ciu_id_addr + 1 ..][0..ciu_id_len];
-
-        // TODO: simd vector search
-        if (std.mem.eql(u8, &identifier_buf, name)) {
-            const support_percentage: f32 = utils.getValueFromData(f32, bin[next_support_offset..]);
-            return .{ support_percentage, ciu_id };
-        }
-    }
-    return null;
+    const feature_index = my_bin.searchRangeForSymbol(0, num_features_toplevel, &identifier_buf) orelse return null;
+    const ciu_id_addr = my_bin.getAlignedValueByIndex(feature_index, .CiuIdAddr);
+    const ciu_id_len = bin[ciu_id_addr];
+    const ciu_id = bin[ciu_id_addr + 1 ..][0..ciu_id_len];
+    const support_percentage = my_bin.getAlignedValueByIndex(feature_index, .Support);
+    return .{ support_percentage, ciu_id };
 }
 
 pub const BinSearchSymbolInfo = struct {
@@ -269,31 +297,30 @@ const sizeof_header = @sizeOf(u32) * 4;
 pub fn getSymbolSupportInfoFromBin(symbol_stack: []BinSearchSymbolInfo) ?BinSearchResult {
     // get target bin file from top-level symbol
     const bin = bin_map.get(symbol_stack[0].node_kind) orelse return null;
-    const num_features_total = utils.getValueFromData(u32, bin[4..]);
-    const num_features_toplevel = utils.getValueFromData(u32, bin[8..]);
+    const num_features_total = utils.getValueFromDataAligned(u32, bin[4..]);
+    const num_features_toplevel = utils.getValueFromDataAligned(u32, bin[8..]);
 
-    var sizeof_bin_sections: std.EnumArray(BinSection, usize) = blk: {
-        var ea: std.EnumArray(BinSection, usize) = .initFill(0);
-        var it = sizeof_entry_per_bin_section.iterator();
-        var index: usize = 0;
-        while (it.next()) |sizeof_entry| {
-            ea.set(@enumFromInt(index), sizeof_entry.value.* * num_features_total);
-            index += 1;
-        }
-        break :blk ea;
+    const sizeof_bin_sections: std.EnumArray(BinSection, usize) = blk: {
+        var sizes: std.EnumArray(BinSection, usize) = .initFill(0);
+        for (sizeof_entry_per_bin_section.values, 0..) |size, i|
+            sizes.set(@enumFromInt(i), size * num_features_total);
+        break :blk sizes;
     };
 
     const section_addrs: std.EnumArray(BinSection, usize) = blk: {
-        var ea: std.EnumArray(BinSection, usize) = .initFill(0);
+        var addrs: std.EnumArray(BinSection, usize) = .initFill(0);
         var current_pos: usize = sizeof_header;
-        var it = sizeof_bin_sections.iterator();
-        var index: usize = 0;
-        while (it.next()) |sizeof_entry| {
-            ea.set(@enumFromInt(index), current_pos);
-            current_pos += sizeof_entry.value.*;
-            index += 1;
+        for (sizeof_bin_sections.values, 0..) |size, i| {
+            addrs.set(@enumFromInt(i), current_pos);
+            current_pos += size.value.*;
         }
-        break :blk ea;
+        break :blk addrs;
+    };
+
+    const my_bin: Bin = .{
+        .data = bin,
+        .sizeof_section = sizeof_bin_sections,
+        .section_addr = section_addrs,
     };
 
     var parent_feature_index: ?usize = null;
@@ -315,32 +342,27 @@ pub fn getSymbolSupportInfoFromBin(symbol_stack: []BinSearchSymbolInfo) ?BinSear
                 num_features_toplevel,
             ) orelse return null;
         } else {
-            const first_child_index_addr = section_addrs.get(.FirstChildIndex) + (parent_feature_index.? * sizeof_bin_sections.get(.FirstChildIndex));
+            // const first_child_index_addr = section_addrs.get(.FirstChildIndex) + (parent_feature_index.? * sizeof_bin_sections.get(.FirstChildIndex));
             const num_children_addr = section_addrs.get(.NumChildren) + (parent_feature_index.? * sizeof_bin_sections.get(.NumChildren));
-            const first_child_index = utils.getValueFromData(u32, bin[first_child_index_addr..]);
-            const num_children = utils.getValueFromData(u16, bin[num_children_addr..]);
+            // const first_child_index = utils.getValueFromDataAligned(u32, bin[first_child_index_addr..]);
+            const num_children = utils.getValueFromDataAligned(u16, bin[num_children_addr..]);
+            const first_child_index = my_bin.getAlignedValueByIndex(parent_feature_index.?, .FirstChildIndex);
 
-            if (symbol_stack_index < symbol_stack.len - 1) {
-                parent_feature_index = searchBinRangeForSymbol(
-                    bin,
-                    &section_addrs,
-                    first_child_index,
-                    first_child_index + num_children,
-                ) orelse return null;
-            } else {
-                const target_feature_index = searchBinRangeForSymbol(
-                    bin,
-                    &section_addrs,
-                    first_child_index,
-                    first_child_index + num_children,
-                ) orelse return null;
-                const support_addr = section_addrs.get(.Support) + (target_feature_index.? * sizeof_bin_sections.get(.Support));
-                const support = utils.getValueFromData(f32, bin[support_addr..]);
-                const ciu_id_addr = section_addrs.get(.CiuIdAddr) + (target_feature_index.? * sizeof_bin_sections.get(.CiuIdAddr));
-                const ciu_id_len = bin[ciu_id_addr];
-                const ciu_id = bin[ciu_id_addr + 1 .. ciu_id_addr + 1 + ciu_id_len];
-                return .{ .support = support, .ciu_id = ciu_id };
-            }
+            parent_feature_index = searchBinRangeForSymbol(
+                bin,
+                &section_addrs,
+                first_child_index,
+                first_child_index + num_children,
+            ) orelse return null;
+        }
+        // feature we're looking for? (bottom of stack)
+        if (symbol_stack_index == symbol_stack.len - 1) {
+            const support_addr = section_addrs.get(.Support) + (parent_feature_index.? * sizeof_bin_sections.get(.Support));
+            const support = utils.getValueFromDataAligned(f32, bin[support_addr..]);
+            const ciu_id_addr = section_addrs.get(.CiuIdAddr) + (parent_feature_index.? * sizeof_bin_sections.get(.CiuIdAddr));
+            const ciu_id_len = bin[ciu_id_addr];
+            const ciu_id = bin[ciu_id_addr + 1 .. ciu_id_addr + 1 + ciu_id_len];
+            return .{ .support = support, .ciu_id = ciu_id };
         }
     }
 
