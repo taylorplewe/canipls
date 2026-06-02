@@ -40,6 +40,40 @@ pub const IgnoredSpan = union(enum) {
     row: usize,
 };
 
+pub const TsNodeKind = enum {
+    HtmlTag,
+    HtmlAttribute,
+    HtmlStringLiteral,
+
+    CssProperty,
+    CssAtRule,
+    CssSelector,
+    CssTagName,
+    CssPlainValue,
+    CssMediaStatement,
+    CssSupportsStatement,
+    CssImportStatement,
+    CssFeatureName,
+    CssUniversalSelector, // "*"
+
+    JsIdentifier,
+    JsPropertyIdentifier,
+    JsPrototypePropertyIdentifier,
+};
+
+// TODO: possibly delete these idk if I need them
+// pub const ts_node_kind_str_to_enum_html: std.StaticStringMap(TsNodeKind) = .initComptime(.{
+//     .{ "tag_name", .HtmlTag },
+//     .{ "attribute_name", .HtmlTag },
+//     .{ "attribute_value", .HtmlStringLiteral },
+// });
+
+// pub const ts_node_kind_str_to_enum_css: std.StaticStringMap(TsNodeKind) = .initComptime(.{
+//     .{ "property_name", .CssProperty },
+//     .{ "at_keyword", .CssAtRule },
+//     .{ "tag_name", .HtmlTag },
+// });
+
 pub const SymbolInfo = struct {
     ts_query_text: []const u8,
     support_bin: []const u8,

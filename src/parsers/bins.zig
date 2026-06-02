@@ -88,7 +88,6 @@ pub fn init(server_allocator: std.mem.Allocator, io: std.Io, environ_map: *std.p
         }
 
         // don't need to fetch new tarball?
-        // TEMP: uncomment:
         if (false and are_all_files_present and oldest_timestamp_ms >= last_seven_thirty_am_utc_ms) break :fetch_new_tarball_if_out_of_date;
 
         log.info("fetching new canipls bin files tarball...", .{});
