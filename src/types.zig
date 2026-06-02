@@ -3,26 +3,6 @@ const lsp = @import("lsp");
 
 const bins = @import("parsers/bins.zig");
 
-pub const ElementKind = enum {
-    HtmlElement,
-    HtmlAttribute,
-    CssProp,
-    CssAtRule,
-    CssSelector,
-    JsApi,
-
-    pub fn getWord(self: ElementKind) []const u8 {
-        return switch (self) {
-            .HtmlElement => "element",
-            .HtmlAttribute => "attribute",
-            .CssProp => "property",
-            .CssAtRule => "at-rule",
-            .CssSelector => "selector",
-            .JsApi => "API",
-        };
-    }
-};
-
 /// Internal type representing all necessary information to build an LSP `Hover` instance
 pub const HoverInfo = struct {
     /// The actual textual representation of the hovered symbol
@@ -61,6 +41,19 @@ pub const TsNodeKind = enum {
     JsIdentifier,
     JsPropertyIdentifier,
     JsPrototypePropertyIdentifier,
+
+    pub fn getDisplayName(self: TsNodeKind) []const u8 {
+        return switch (self) {
+            .HtmlTag => "element",
+            .HtmlAttribute => "attribute",
+            .HtmlStringLiteral => "attribute value",
+            .CssProperty => "property",
+            .CssAtRule => "at-rule",
+            .CssSelector => "selector",
+            .JsIdentifier => "API",
+            else => "feature",
+        };
+    }
 };
 
 // TODO: possibly delete these idk if I need them
@@ -79,7 +72,7 @@ pub const TsNodeKind = enum {
 pub const SymbolInfo = struct {
     ts_query_text: []const u8,
     support_bin: *const bins.Bin,
-    element_kind: ElementKind,
+    node_kind: TsNodeKind,
     name_trim_start: usize = 0,
 };
 pub const InjectionParseInfo = struct {

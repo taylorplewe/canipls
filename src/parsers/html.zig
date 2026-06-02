@@ -224,7 +224,7 @@ pub fn parseHtmlAndReturnDiagnostics(
                 if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
                     allocator,
                     &tag_node,
-                    types.ElementKind.HtmlElement,
+                    .HtmlTag,
                     feature_info.support,
                     start_column,
                     start_row,
@@ -245,7 +245,7 @@ pub fn parseHtmlAndReturnDiagnostics(
                         if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
                             allocator,
                             &node,
-                            types.ElementKind.HtmlAttribute,
+                            .HtmlStringLiteral,
                             feature_info.support,
                             start_column,
                             start_row,
@@ -262,7 +262,7 @@ pub fn parseHtmlAndReturnDiagnostics(
                         if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
                             allocator,
                             &node,
-                            types.ElementKind.HtmlAttribute,
+                            .HtmlStringLiteral,
                             feature_info.support,
                             start_column,
                             start_row,
@@ -280,7 +280,7 @@ pub fn parseHtmlAndReturnDiagnostics(
                         if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
                             allocator,
                             &node,
-                            types.ElementKind.HtmlAttribute,
+                            .HtmlAttribute,
                             feature_info.support,
                             start_column,
                             start_row,
@@ -296,7 +296,7 @@ pub fn parseHtmlAndReturnDiagnostics(
                         if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
                             allocator,
                             &node,
-                            types.ElementKind.HtmlAttribute,
+                            .HtmlAttribute,
                             feature_info.support,
                             start_column,
                             start_row,
