@@ -9,7 +9,7 @@ const types = @import("../types.zig");
 const utils = @import("../utils.zig");
 const bins = @import("bins.zig");
 const HoverInfo = types.HoverInfo;
-const ElementKind = types.ElementKind;
+const TsNodeKind = types.TsNodeKind;
 const IgnoredSpan = types.IgnoredSpan;
 const SymbolInfo = types.SymbolInfo;
 const InjectionParseInfo = types.InjectionParseInfo;
@@ -36,7 +36,7 @@ getHoverInfoAtPosition: *const fn (
 pub fn getLspDiagnosticFromTsNode(
     allocator: std.mem.Allocator,
     node: *const ts.Node,
-    element_kind: ElementKind,
+    node_kind: TsNodeKind,
     global_support_percentage: f32,
     start_column: u32,
     start_row: u32,
@@ -49,14 +49,14 @@ pub fn getLspDiagnosticFromTsNode(
         },
         .message = getDiagnosticPhraseFromElement(
             allocator,
-            element_kind,
+            node_kind,
             global_support_percentage,
         ),
         .severity = .Warning,
     };
 }
-fn getDiagnosticPhraseFromElement(allocator: std.mem.Allocator, element_kind: ElementKind, global_support_percentage: f32) []u8 {
-    const kind_word = element_kind.getWord();
+fn getDiagnosticPhraseFromElement(allocator: std.mem.Allocator, node_kind: TsNodeKind, global_support_percentage: f32) []u8 {
+    const kind_word = node_kind.getDisplayName();
     return std.fmt.allocPrint(
         allocator,
         "This {s} only has {d:.2}% global support on caniuse.com",

@@ -226,7 +226,7 @@ pub fn parseHtmlAndReturnDiagnostics(
                 if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
                     allocator,
                     &tag_node,
-                    types.ElementKind.HtmlElement,
+                    .HtmlTag,
                     feature_info.support,
                     start_column,
                     start_row,
@@ -247,7 +247,7 @@ pub fn parseHtmlAndReturnDiagnostics(
                         if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
                             allocator,
                             &node,
-                            types.ElementKind.HtmlAttribute,
+                            .HtmlStringLiteral,
                             feature_info.support,
                             start_column,
                             start_row,
@@ -264,7 +264,7 @@ pub fn parseHtmlAndReturnDiagnostics(
                         if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
                             allocator,
                             &node,
-                            types.ElementKind.HtmlAttribute,
+                            .HtmlStringLiteral,
                             feature_info.support,
                             start_column,
                             start_row,
@@ -282,7 +282,7 @@ pub fn parseHtmlAndReturnDiagnostics(
                         if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
                             allocator,
                             &node,
-                            types.ElementKind.HtmlAttribute,
+                            .HtmlAttribute,
                             feature_info.support,
                             start_column,
                             start_row,
@@ -298,7 +298,7 @@ pub fn parseHtmlAndReturnDiagnostics(
                         if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
                             allocator,
                             &node,
-                            types.ElementKind.HtmlAttribute,
+                            .HtmlAttribute,
                             feature_info.support,
                             start_column,
                             start_row,
@@ -309,69 +309,6 @@ pub fn parseHtmlAndReturnDiagnostics(
                     }
                 }
             }
-
-            // look up this symbol in the appropriate support bin file
-            // const maybe_feature_info = bins.getSupportPercentageAndCiuIdForIdentifierFromBin(name, symbol_info.support_bin);
-
-            // TODO: the following block is VERY TEMPORARY, please don't allow in prod code
-            // const bin = bins.bin_map.get(.HtmlTag).?;
-
-            // const maybe_feature_info = percentage: {
-            //     if (tag_name.len > 32) break :percentage null;
-
-            //     // make identifier name in question 32-chars wide, padded with 0's
-            //     @memcpy(identifier_buf[0..tag_name.len], tag_name);
-            //     if (tag_name.len < 32)
-            //         @memset(identifier_buf[tag_name.len..], 0);
-
-            //     const num_features_total = utils.getValueFromDataAligned(u32, bin[4..]);
-            //     const num_features_toplevel = utils.getValueFromDataAligned(u32, bin[8..]);
-            //     const sizeof_header = @sizeOf(u32) * 4;
-
-            //     var sizeof_bin_sections: std.EnumArray(BinSection, usize) = blk: {
-            //         var ea: std.EnumArray(BinSection, usize) = .initFill(0);
-            //         var it = sizeof_entry_per_bin_section.iterator();
-            //         var index: usize = 0;
-            //         while (it.next()) |sizeof_entry| {
-            //             ea.set(@enumFromInt(index), sizeof_entry.value.* * num_features_total);
-            //             index += 1;
-            //         }
-            //         break :blk ea;
-            //     };
-
-            //     const section_addrs: std.EnumArray(BinSection, usize) = blk: {
-            //         var ea: std.EnumArray(BinSection, usize) = .initFill(0);
-            //         var current_pos: usize = sizeof_header;
-            //         var it = sizeof_bin_sections.iterator();
-            //         var index: usize = 0;
-            //         while (it.next()) |sizeof_entry| {
-            //             ea.set(@enumFromInt(index), current_pos);
-            //             current_pos += sizeof_entry.value.*;
-            //             index += 1;
-            //         }
-            //         break :blk ea;
-            //     };
-
-            //     // search for feature
-            //     for (0..num_features_toplevel) |i| {
-            //         const next_support_offset = section_addrs.get(.Support) + (i * sizeof_entry_per_bin_section.get(.Support));
-            //         const next_identifier_offset = section_addrs.get(.Identifier) + (i * sizeof_entry_per_bin_section.get(.Identifier));
-            //         const next_ciu_id_addr_offset = section_addrs.get(.CiuIdAddr) + (i * sizeof_entry_per_bin_section.get(.CiuIdAddr));
-
-            //         const my_name = bin[next_identifier_offset..][0..32];
-            //         const ciu_id_addr = utils.getValueFromDataAligned(u32, bin[next_ciu_id_addr_offset..]);
-            //         const ciu_id_len = bin[ciu_id_addr];
-            //         const ciu_id = bin[ciu_id_addr + 1 ..][0..ciu_id_len];
-
-            //         // TODO: simd vector search
-            //         if (std.mem.eql(u8, &identifier_buf, my_name)) {
-            //             const support_percentage: f32 = utils.getValueFromDataAligned(f32, bin[next_support_offset..]);
-            //             break :percentage .{ support_percentage, ciu_id };
-            //         }
-            //     }
-            //     break :percentage null;
-            // };
-
         }
 
         for (injections) |injection_info| {
