@@ -299,11 +299,6 @@ pub fn getSymbolSupportInfoFromBin(symbol_stack: []const BinSearchSymbolInfo) ?B
             const num_children = bin.getAlignedValueByIndex(parent_feature_index.?, .NumChildren);
             const first_child_index = bin.getAlignedValueByIndex(parent_feature_index.?, .FirstChildIndex);
 
-            if (std.mem.eql(u8, symbol_stack[0].name, "button") and symbol_stack_index == 1) {
-                log.info("num children for button: {d}", .{num_children});
-                log.info("first child index for button: {d}", .{first_child_index});
-            }
-
             parent_feature_index = bin.searchRangeForSymbol(
                 first_child_index,
                 first_child_index + num_children,
