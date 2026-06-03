@@ -78,7 +78,7 @@ pub fn parseHtmlAndReturnDiagnostics(
     const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
     const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
 
-    const NEW_QUERY_TAGS_AND_ATTRS =
+    const QUERY_TAGS_AND_ATTRS =
         \\[
         \\  (start_tag
         \\    (tag_name) @tagname
@@ -194,7 +194,7 @@ pub fn parseHtmlAndReturnDiagnostics(
             }
         }
 
-        const query = ts.Query.create(lang, NEW_QUERY_TAGS_AND_ATTRS, &error_offset) catch |err| {
+        const query = ts.Query.create(lang, QUERY_TAGS_AND_ATTRS, &error_offset) catch |err| {
             log.err("could not create tree-sitter query: {}", .{err});
             return diagnostics.items;
         };
