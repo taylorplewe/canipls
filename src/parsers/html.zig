@@ -75,8 +75,6 @@ pub fn parseHtmlAndReturnDiagnostics(
     start_row: u32,
     lang: *ts.Language,
 ) []const lsp.types.Diagnostic {
-    // const QUERY_TAGS = "(start_tag (tag_name) @tagname)";
-    // const QUERY_ATTRS = "(attribute_name) @attrname";
     const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
     const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
 
