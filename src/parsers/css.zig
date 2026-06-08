@@ -150,7 +150,8 @@ fn parse(
 
             val_loop: for (match.captures[1..]) |capture| {
                 const node = capture.node;
-                const name = code[node.startByte()..node.endByte()];
+                const start_index: usize = if (std.mem.eql(u8, node.kind(), "at_keyword")) 1 else 0;
+                const name = code[node.startByte() + start_index .. node.endByte()];
 
                 // contained in an ignore span? if so, skip
                 for (ignored_spans) |span| {
@@ -165,12 +166,10 @@ fn parse(
                 }
 
                 const node_kind = node_kind_str_to_enum.get(node.kind()) orelse continue :val_loop;
-                log.info("got here", .{});
                 if (bins.getSymbolSupportInfoFromBin(&.{
                     .{ .name = at_rule_name, .node_kind = .CssAtRule },
                     .{ .name = name, .node_kind = node_kind },
                 })) |feature_info| {
-                    log.info("found one for that feature!", .{});
                     if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
                         allocator,
                         &node,
