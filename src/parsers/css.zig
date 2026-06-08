@@ -29,6 +29,10 @@ fn init() void {
 fn deinit() void {
     lang_css.destroy();
 }
+const node_kind_str_to_enum = std.StaticStringMap(types.TsNodeKind).initComptime(.{
+    .{ "plain_value", types.TsNodeKind.CssPlainValue },
+    .{ "call_expression", types.TsNodeKind.CssCallExpression },
+});
 fn parse(
     allocator: std.mem.Allocator,
     code: []const u8,
@@ -44,7 +48,7 @@ fn parse(
         \\(
         \\  (property_name) @propname
         \\  [
-        \\    (plain_value) @plainval
+        \\    (plain_value) @val
         \\    (color_value)
         \\    (integer_value)
         \\    (float_value)
@@ -52,7 +56,7 @@ fn parse(
         \\    (grid_value)
         \\    (binary_expression)
         \\    (parenthesized_value)
-        \\    (call_expression)
+        \\    (call_expression) @val
         \\    (important)
         \\  ]*
         \\)
@@ -151,14 +155,15 @@ fn parse(
                     }
                 }
 
+                const node_kind = node_kind_str_to_enum.get(node.kind()) orelse continue :val_loop;
                 if (bins.getSymbolSupportInfoFromBin(&.{
                     .{ .name = prop_name, .node_kind = .CssProperty },
-                    .{ .name = name, .node_kind = .CssPlainValue },
+                    .{ .name = name, .node_kind = node_kind },
                 })) |feature_info| {
                     if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
                         allocator,
                         &node,
-                        .CssPlainValue,
+                        node_kind,
                         feature_info.support,
                         start_column,
                         start_row,

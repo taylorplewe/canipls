@@ -22,6 +22,7 @@ pub const IgnoredSpan = union(enum) {
     row: usize,
 };
 
+/// NOTE: the members of this enum must match exactly those of the `TsNodeKind` enum in `parse-bcd-json.cpp`
 pub const TsNodeKind = enum {
     HtmlTag,
     HtmlAttribute,
@@ -32,6 +33,7 @@ pub const TsNodeKind = enum {
     CssSelector,
     CssTagName,
     CssPlainValue,
+    CssCallExpression,
     CssMediaStatement,
     CssSupportsStatement,
     CssImportStatement,
