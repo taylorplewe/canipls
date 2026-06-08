@@ -124,7 +124,7 @@ pub fn parseHtmlAndReturnDiagnostics(
     if (parse_res) |ast| {
         defer ast.destroy();
 
-        const root_node = ast.rootNode();
+        var root_node = ast.rootNode();
 
         var error_offset: u32 = 0;
 
@@ -137,62 +137,15 @@ pub fn parseHtmlAndReturnDiagnostics(
         };
         defer comment_query.destroy();
 
-        // comments (look for canipls-ignore)
-        var ignored_spans: std.ArrayList(IgnoredSpan) = .empty;
-        defer ignored_spans.deinit(allocator);
-        var current_ignore_region_start_row: ?usize = null;
-        cursor.exec(comment_query, root_node);
-        while (cursor.nextMatch()) |match| {
-            const comment_node = match.captures[0].node;
-            const comment_raw = code[comment_node.startByte()..comment_node.endByte()];
-            const comment = trimComment(comment_raw);
-
-            // gather up all the canipls-ignore spans, for later
-            if (std.mem.eql(u8, comment, "canipls-ignore-file")) {
-                return &.{};
-            } else if (std.mem.eql(u8, comment, "canipls-ignore")) {
-                ignored_spans.append(allocator, .{ .row = comment_node.startPoint().row }) catch return &.{};
-            } else if (std.mem.eql(u8, comment, "canipls-ignore-nextline")) {
-                ignored_spans.append(allocator, .{ .row = comment_node.startPoint().row + 1 }) catch return &.{};
-            } else if (std.mem.eql(u8, comment, "canipls-ignore-start")) {
-                if (current_ignore_region_start_row) |row_start| {
-                    diagnostics.append(allocator, .{
-                        .range = .{
-                            .start = .{ .character = comment_node.startPoint().column, .line = comment_node.startPoint().row },
-                            .end = .{ .character = comment_node.endPoint().column, .line = comment_node.endPoint().row },
-                        },
-                        .message = std.fmt.allocPrint(allocator, "This ignore-start shadows the one found on line {d}", .{row_start + 1}) catch |err| {
-                            log.err("could not call allocPrint() when appending comment diagnostic: {}", .{err});
-                            return diagnostics.items;
-                        },
-                        .severity = .Warning,
-                    }) catch return &.{};
-                } else {
-                    current_ignore_region_start_row = comment_node.startPoint().row;
-                }
-            } else if (std.mem.eql(u8, comment, "canipls-ignore-end")) {
-                if (current_ignore_region_start_row) |row_start| {
-                    ignored_spans.append(
-                        allocator,
-                        .{
-                            .region = .{ .row_start = row_start, .row_end = comment_node.startPoint().row },
-                        },
-                    ) catch return &.{};
-                } else {
-                    diagnostics.append(allocator, .{
-                        .range = .{
-                            .start = .{ .character = comment_node.startPoint().column, .line = comment_node.startPoint().row },
-                            .end = .{ .character = comment_node.endPoint().column, .line = comment_node.endPoint().row },
-                        },
-                        .message = std.fmt.allocPrint(allocator, "This ignore-end has no ignore-start pairing", .{}) catch |err| {
-                            log.err("could not call allocPrint() when appending comment diagnostic: {}", .{err});
-                            return diagnostics.items;
-                        },
-                        .severity = .Warning,
-                    }) catch return &.{};
-                }
-            }
-        }
+        const ignored_spans = Parser.getIgnoreSpansFromCode(
+            allocator,
+            lang,
+            &root_node,
+            trimComment,
+            &diagnostics,
+            code,
+        );
+        defer allocator.free(ignored_spans);
 
         const query = ts.Query.create(lang, QUERY_TAGS_AND_ATTRS, &error_offset) catch |err| {
             log.err("could not create tree-sitter query: {}", .{err});
@@ -206,7 +159,7 @@ pub fn parseHtmlAndReturnDiagnostics(
             const tag_name = code[tag_node.startByte()..tag_node.endByte()];
 
             // contained in an ignore span? if so, skip
-            for (ignored_spans.items) |span| {
+            for (ignored_spans) |span| {
                 switch (span) {
                     .row => |ignored_row| {
                         if (tag_node.startPoint().row == ignored_row) continue :match_loop;

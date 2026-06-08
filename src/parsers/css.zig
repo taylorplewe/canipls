@@ -7,6 +7,7 @@ const HoverInfo = types.HoverInfo;
 const IgnoredSpan = types.IgnoredSpan;
 const Parser = @import("Parser.zig");
 const bins = @import("bins.zig");
+const config = @import("../config.zig");
 
 const log = std.log.scoped(.canipls);
 
@@ -34,14 +35,143 @@ fn parse(
     start_column: u32,
     start_row: u32,
 ) []const lsp.types.Diagnostic {
-    _ = allocator; // autofix
-    _ = code; // autofix
-    _ = start_column; // autofix
-    _ = start_row; // autofix
     // const QUERY_PROPS = "(property_name) @propname";
     // const QUERY_AT_RULES = "(at_keyword) @atrule";
     // const QUERY_PSEUDO_ELEMENT_SELECTORS = "(pseudo_element_selector (tag_name) @pseudoelementname)";
     // const QUERY_PSEUDO_CLASS_SELECTORS = "(pseudo_class_selector (class_name) @pseudoelementname)";
+
+    const QUERY_PROPERTIES =
+        \\(
+        \\  (property_name) @propname
+        \\  [
+        \\    (plain_value) @plainval
+        \\    (color_value)
+        \\    (integer_value)
+        \\    (float_value)
+        \\    (string_value)
+        \\    (grid_value)
+        \\    (binary_expression)
+        \\    (parenthesized_value)
+        \\    (call_expression)
+        \\    (important)
+        \\  ]*
+        \\)
+    ;
+
+    const QUERY_COMMENT = "(comment) @comment"; // this is the same for all 3 TS parsers; HTML, CSS and JS.
+
+    const parser = ts.Parser.create();
+    defer parser.destroy();
+    parser.setLanguage(lang_css) catch return &.{};
+
+    var diagnostics: std.ArrayList(lsp.types.Diagnostic) = .empty;
+
+    const parse_res = parser.parseString(code, null);
+    if (parse_res) |ast| {
+        defer ast.destroy();
+
+        var root_node = ast.rootNode();
+
+        var error_offset: u32 = 0;
+
+        const cursor = ts.QueryCursor.create();
+        defer cursor.destroy();
+
+        const comment_query = ts.Query.create(lang_css, QUERY_COMMENT, &error_offset) catch |err| {
+            log.err("could not create tree-sitter comment query: {}", .{err});
+            return &.{};
+        };
+        defer comment_query.destroy();
+
+        const ignored_spans = Parser.getIgnoreSpansFromCode(
+            allocator,
+            lang_css,
+            &root_node,
+            trimComment,
+            &diagnostics,
+            code,
+        );
+        defer allocator.free(ignored_spans);
+
+        const query = ts.Query.create(lang_css, QUERY_PROPERTIES, &error_offset) catch |err| {
+            log.err("could not create tree-sitter query: {}", .{err});
+            return diagnostics.items;
+        };
+        defer query.destroy();
+
+        cursor.exec(query, root_node);
+        match_loop: while (cursor.nextMatch()) |match| {
+            const prop_node = match.captures[0].node;
+            const prop_name = code[prop_node.startByte()..prop_node.endByte()];
+
+            log.info("css prop: {s}", .{prop_name});
+
+            // contained in an ignore span? if so, skip
+            for (ignored_spans) |span| {
+                switch (span) {
+                    .row => |ignored_row| {
+                        if (prop_node.startPoint().row == ignored_row) continue :match_loop;
+                    },
+                    .region => |ignored_region| {
+                        if (prop_node.startPoint().row > ignored_region.row_start and prop_node.startPoint().row < ignored_region.row_end) continue :match_loop;
+                    },
+                }
+            }
+
+            if (bins.getSymbolSupportInfoFromBin(&.{
+                .{ .name = prop_name, .node_kind = .CssProperty },
+            })) |feature_info| {
+                if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                    allocator,
+                    &prop_node,
+                    .CssProperty,
+                    feature_info.support,
+                    start_column,
+                    start_row,
+                )) catch |err| {
+                    log.err("could not add diagnostic for CSS property '{s}' to `diagnostics` ArrayList: {}", .{ prop_name, err });
+                };
+            }
+
+            val_loop: for (match.captures[1..]) |capture| {
+                const node = capture.node;
+                const name = code[node.startByte()..node.endByte()];
+
+                log.info("subs. css capture: {s}", .{name});
+
+                // contained in an ignore span? if so, skip
+                for (ignored_spans) |span| {
+                    switch (span) {
+                        .row => |ignored_row| {
+                            if (node.startPoint().row == ignored_row) continue :val_loop;
+                        },
+                        .region => |ignored_region| {
+                            if (node.startPoint().row > ignored_region.row_start and node.startPoint().row < ignored_region.row_end) continue :val_loop;
+                        },
+                    }
+                }
+
+                if (bins.getSymbolSupportInfoFromBin(&.{
+                    .{ .name = prop_name, .node_kind = .CssProperty },
+                    .{ .name = name, .node_kind = .CssPlainValue },
+                })) |feature_info| {
+                    if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                        allocator,
+                        &node,
+                        .CssPlainValue,
+                        feature_info.support,
+                        start_column,
+                        start_row,
+                    )) catch |err| {
+                        log.err("could not add diagnostic for CSS property value '{s}' to `diagnostics` ArrayList: {}", .{ name, err });
+                    };
+                    continue;
+                }
+            }
+        }
+    }
+
+    return diagnostics.items;
 
     // const symbols = [_]types.SymbolInfo{
     //     .{
@@ -77,7 +207,7 @@ fn parse(
     //     &symbols,
     //     &.{},
     // );
-    return &.{};
+    // return &.{};
 }
 
 fn getHoverInfoAtPosition(

@@ -48,6 +48,7 @@ pub const TsNodeKind = enum {
             .HtmlAttribute => "attribute",
             .HtmlStringLiteral => "attribute value",
             .CssProperty => "property",
+            .CssPlainValue => "property value",
             .CssAtRule => "at-rule",
             .CssSelector => "selector",
             .JsIdentifier => "API",

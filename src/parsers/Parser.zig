@@ -329,3 +329,83 @@ pub fn getHoverDocFromCodeAtPosition(
     }
     return null;
 }
+
+const QUERY_COMMENT = "(comment) @comment"; // this is the same for all 3 TS parsers; HTML, CSS and JS.
+/// Get a list of canipls-ignore ranges in a piece of code
+///
+/// Caller owns returned memory
+pub fn getIgnoreSpansFromCode(
+    allocator: std.mem.Allocator,
+    lang: *ts.Language,
+    root_node: *ts.Node,
+    trimComment: *const fn (in: []const u8) []const u8,
+    diagnostics: *std.ArrayList(lsp.types.Diagnostic),
+    code: []const u8,
+) []IgnoredSpan {
+    const cursor = ts.QueryCursor.create();
+    defer cursor.destroy();
+
+    var error_offset: u32 = 0;
+    const comment_query = ts.Query.create(lang, QUERY_COMMENT, &error_offset) catch |err| {
+        log.err("could not create tree-sitter comment query: {}", .{err});
+        return &.{};
+    };
+    defer comment_query.destroy();
+
+    var ignored_spans: std.ArrayList(IgnoredSpan) = .empty;
+    var current_ignore_region_start_row: ?usize = null;
+    cursor.exec(comment_query, root_node.*);
+    while (cursor.nextMatch()) |match| {
+        const comment_node = match.captures[0].node;
+        const comment_raw = code[comment_node.startByte()..comment_node.endByte()];
+        const comment = trimComment(comment_raw);
+
+        // gather up all the canipls-ignore spans, for later
+        if (std.mem.eql(u8, comment, "canipls-ignore-file")) {
+            return &.{};
+        } else if (std.mem.eql(u8, comment, "canipls-ignore")) {
+            ignored_spans.append(allocator, .{ .row = comment_node.startPoint().row }) catch return &.{};
+        } else if (std.mem.eql(u8, comment, "canipls-ignore-nextline")) {
+            ignored_spans.append(allocator, .{ .row = comment_node.startPoint().row + 1 }) catch return &.{};
+        } else if (std.mem.eql(u8, comment, "canipls-ignore-start")) {
+            if (current_ignore_region_start_row) |row_start| {
+                diagnostics.append(allocator, .{
+                    .range = .{
+                        .start = .{ .character = comment_node.startPoint().column, .line = comment_node.startPoint().row },
+                        .end = .{ .character = comment_node.endPoint().column, .line = comment_node.endPoint().row },
+                    },
+                    .message = std.fmt.allocPrint(allocator, "This ignore-start shadows the one found on line {d}", .{row_start + 1}) catch |err| {
+                        log.err("could not call allocPrint() when appending comment diagnostic: {}", .{err});
+                        return ignored_spans.toOwnedSlice(allocator) catch &.{};
+                    },
+                    .severity = .Warning,
+                }) catch return &.{};
+            } else {
+                current_ignore_region_start_row = comment_node.startPoint().row;
+            }
+        } else if (std.mem.eql(u8, comment, "canipls-ignore-end")) {
+            if (current_ignore_region_start_row) |row_start| {
+                ignored_spans.append(
+                    allocator,
+                    .{
+                        .region = .{ .row_start = row_start, .row_end = comment_node.startPoint().row },
+                    },
+                ) catch return &.{};
+            } else {
+                diagnostics.append(allocator, .{
+                    .range = .{
+                        .start = .{ .character = comment_node.startPoint().column, .line = comment_node.startPoint().row },
+                        .end = .{ .character = comment_node.endPoint().column, .line = comment_node.endPoint().row },
+                    },
+                    .message = std.fmt.allocPrint(allocator, "This ignore-end has no ignore-start pairing", .{}) catch |err| {
+                        log.err("could not call allocPrint() when appending comment diagnostic: {}", .{err});
+                        return ignored_spans.toOwnedSlice(allocator) catch &.{};
+                    },
+                    .severity = .Warning,
+                }) catch return &.{};
+            }
+        }
+    }
+
+    return ignored_spans.toOwnedSlice(allocator) catch &.{};
+}
