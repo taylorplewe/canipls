@@ -32,6 +32,8 @@ fn deinit() void {
 const node_kind_str_to_enum = std.StaticStringMap(types.TsNodeKind).initComptime(.{
     .{ "plain_value", types.TsNodeKind.CssPlainValue },
     .{ "call_expression", types.TsNodeKind.CssCallExpression },
+    .{ "property_name", types.TsNodeKind.CssProperty },
+    .{ "at_keyword", types.TsNodeKind.CssAtRule },
 });
 fn parse(
     allocator: std.mem.Allocator,
@@ -49,16 +51,27 @@ fn parse(
         \\  (property_name) @propname
         \\  [
         \\    (plain_value) @val
-        \\    (color_value)
-        \\    (integer_value)
-        \\    (float_value)
-        \\    (string_value)
-        \\    (grid_value)
-        \\    (binary_expression)
-        \\    (parenthesized_value)
         \\    (call_expression) @val
-        \\    (important)
+        \\    _
         \\  ]*
+        \\)
+    ;
+
+    const QUERY_AT_RULES =
+        \\(
+        \\  (at_keyword) @rule
+        \\  _*
+        \\  (block
+        \\    [
+        \\      (declaration
+        \\        (property_name) @propname
+        \\      )
+        \\      (at_rule
+        \\        (at_keyword) @rule
+        \\      )
+        \\      _
+        \\    ]*
+        \\  )
         \\)
     ;
 
@@ -97,18 +110,92 @@ fn parse(
         );
         defer allocator.free(ignored_spans);
 
+        // at-rules
+        const query_at_rules = ts.Query.create(lang_css, QUERY_AT_RULES, &error_offset) catch |err| {
+            log.err("could not create tree-sitter query: {}", .{err});
+            return diagnostics.items;
+        };
+        defer query_at_rules.destroy();
+        cursor.exec(query_at_rules, root_node);
+        match_loop: while (cursor.nextMatch()) |match| {
+            const at_rule_node = match.captures[0].node;
+            const at_rule_name = code[at_rule_node.startByte() + 1 .. at_rule_node.endByte()];
+
+            // contained in an ignore span? if so, skip
+            for (ignored_spans) |span| {
+                switch (span) {
+                    .row => |ignored_row| {
+                        if (at_rule_node.startPoint().row == ignored_row) continue :match_loop;
+                    },
+                    .region => |ignored_region| {
+                        if (at_rule_node.startPoint().row > ignored_region.row_start and at_rule_node.startPoint().row < ignored_region.row_end) continue :match_loop;
+                    },
+                }
+            }
+
+            if (bins.getSymbolSupportInfoFromBin(&.{
+                .{ .name = at_rule_name, .node_kind = .CssAtRule },
+            })) |feature_info| {
+                if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                    allocator,
+                    &at_rule_node,
+                    .CssAtRule,
+                    feature_info.support,
+                    start_column,
+                    start_row,
+                )) catch |err| {
+                    log.err("could not add diagnostic for CSS at-rule '{s}' to `diagnostics` ArrayList: {}", .{ at_rule_name, err });
+                };
+            }
+
+            val_loop: for (match.captures[1..]) |capture| {
+                const node = capture.node;
+                const name = code[node.startByte()..node.endByte()];
+
+                // contained in an ignore span? if so, skip
+                for (ignored_spans) |span| {
+                    switch (span) {
+                        .row => |ignored_row| {
+                            if (node.startPoint().row == ignored_row) continue :val_loop;
+                        },
+                        .region => |ignored_region| {
+                            if (node.startPoint().row > ignored_region.row_start and node.startPoint().row < ignored_region.row_end) continue :val_loop;
+                        },
+                    }
+                }
+
+                const node_kind = node_kind_str_to_enum.get(node.kind()) orelse continue :val_loop;
+                log.info("got here", .{});
+                if (bins.getSymbolSupportInfoFromBin(&.{
+                    .{ .name = at_rule_name, .node_kind = .CssAtRule },
+                    .{ .name = name, .node_kind = node_kind },
+                })) |feature_info| {
+                    log.info("found one for that feature!", .{});
+                    if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                        allocator,
+                        &node,
+                        node_kind,
+                        feature_info.support,
+                        start_column,
+                        start_row,
+                    )) catch |err| {
+                        log.err("could not add diagnostic for CSS at-rule descriptor '{s}' to `diagnostics` ArrayList: {}", .{ name, err });
+                    };
+                    continue;
+                }
+            }
+        }
+
+        // properties
         const query = ts.Query.create(lang_css, QUERY_PROPERTIES, &error_offset) catch |err| {
             log.err("could not create tree-sitter query: {}", .{err});
             return diagnostics.items;
         };
         defer query.destroy();
-
         cursor.exec(query, root_node);
         match_loop: while (cursor.nextMatch()) |match| {
             const prop_node = match.captures[0].node;
             const prop_name = code[prop_node.startByte()..prop_node.endByte()];
-
-            log.info("css prop: {s}", .{prop_name});
 
             // contained in an ignore span? if so, skip
             for (ignored_spans) |span| {
@@ -125,23 +212,29 @@ fn parse(
             if (bins.getSymbolSupportInfoFromBin(&.{
                 .{ .name = prop_name, .node_kind = .CssProperty },
             })) |feature_info| {
-                if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
-                    allocator,
-                    &prop_node,
-                    .CssProperty,
-                    feature_info.support,
-                    start_column,
-                    start_row,
-                )) catch |err| {
-                    log.err("could not add diagnostic for CSS property '{s}' to `diagnostics` ArrayList: {}", .{ prop_name, err });
-                };
+                if (feature_info.support < config.config.support_threshold) {
+                    // already found one as a child of one of the previous queries? those take precedence
+                    // TODO: see if this is the most efficient way of checking this, and if it should be done in other places too
+                    for (diagnostics.items) |diagnostic| {
+                        if (diagnostic.range.start.line == prop_node.startPoint().row and diagnostic.range.start.character == prop_node.startPoint().column)
+                            continue :match_loop;
+                    }
+                    diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                        allocator,
+                        &prop_node,
+                        .CssProperty,
+                        feature_info.support,
+                        start_column,
+                        start_row,
+                    )) catch |err| {
+                        log.err("could not add diagnostic for CSS property '{s}' to `diagnostics` ArrayList: {}", .{ prop_name, err });
+                    };
+                }
             }
 
             val_loop: for (match.captures[1..]) |capture| {
                 const node = capture.node;
                 const name = code[node.startByte()..node.endByte()];
-
-                log.info("subs. css capture: {s}", .{name});
 
                 // contained in an ignore span? if so, skip
                 for (ignored_spans) |span| {
@@ -177,42 +270,6 @@ fn parse(
     }
 
     return diagnostics.items;
-
-    // const symbols = [_]types.SymbolInfo{
-    //     .{
-    //         .element_kind = .CssProp,
-    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.CssProperty),
-    //         .ts_query_text = QUERY_PROPS,
-    //     },
-    //     .{
-    //         .element_kind = .CssAtRule,
-    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.CssAtRule),
-    //         .ts_query_text = QUERY_AT_RULES,
-    //         .name_trim_start = 1,
-    //     },
-    //     .{
-    //         .element_kind = .CssSelector,
-    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.CssSelector),
-    //         .ts_query_text = QUERY_PSEUDO_CLASS_SELECTORS,
-    //     },
-    //     .{
-    //         .element_kind = .CssSelector,
-    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.CssSelector),
-    //         .ts_query_text = QUERY_PSEUDO_ELEMENT_SELECTORS,
-    //     },
-    // };
-
-    // return Parser.getDiagnosticsFromCode(
-    //     allocator,
-    //     lang_css,
-    //     code,
-    //     start_column,
-    //     start_row,
-    //     trimComment,
-    //     &symbols,
-    //     &.{},
-    // );
-    // return &.{};
 }
 
 fn getHoverInfoAtPosition(
