@@ -34,6 +34,8 @@ const node_kind_str_to_enum = std.StaticStringMap(types.TsNodeKind).initComptime
     .{ "call_expression", types.TsNodeKind.CssCallExpression },
     .{ "property_name", types.TsNodeKind.CssProperty },
     .{ "at_keyword", types.TsNodeKind.CssAtRule },
+    .{ "tag_name", types.TsNodeKind.CssTagName },
+    .{ "universal_selector", types.TsNodeKind.CssUniversalSelector },
 });
 fn parse(
     allocator: std.mem.Allocator,
@@ -75,7 +77,27 @@ fn parse(
         \\)
     ;
 
-    const QUERY_COMMENT = "(comment) @comment"; // this is the same for all 3 TS parsers; HTML, CSS and JS.
+    const QUERY_SELECTORS =
+        \\(
+        \\  (selectors
+        \\    (_
+        \\      [
+        \\        (tag_name) @tagname
+        \\        (class_name) @classname
+        \\      ]
+        \\      (arguments
+        \\        [
+        \\          (tag_name) @tagname
+        \\          (universal_selector) @star
+        \\        ]
+        \\      )
+        \\    )
+        \\  )
+        \\  (block
+        \\    (declaration (property_name) @propname)*
+        \\  )?
+        \\)
+    ;
 
     const parser = ts.Parser.create();
     defer parser.destroy();
@@ -86,19 +108,7 @@ fn parse(
     const parse_res = parser.parseString(code, null);
     if (parse_res) |ast| {
         defer ast.destroy();
-
         var root_node = ast.rootNode();
-
-        var error_offset: u32 = 0;
-
-        const cursor = ts.QueryCursor.create();
-        defer cursor.destroy();
-
-        const comment_query = ts.Query.create(lang_css, QUERY_COMMENT, &error_offset) catch |err| {
-            log.err("could not create tree-sitter comment query: {}", .{err});
-            return &.{};
-        };
-        defer comment_query.destroy();
 
         const ignored_spans = Parser.getIgnoreSpansFromCode(
             allocator,
@@ -109,6 +119,10 @@ fn parse(
             code,
         );
         defer allocator.free(ignored_spans);
+
+        var error_offset: u32 = 0;
+        const cursor = ts.QueryCursor.create();
+        defer cursor.destroy();
 
         // at-rules
         const query_at_rules = ts.Query.create(lang_css, QUERY_AT_RULES, &error_offset) catch |err| {
@@ -179,6 +193,83 @@ fn parse(
                         start_row,
                     )) catch |err| {
                         log.err("could not add diagnostic for CSS at-rule descriptor '{s}' to `diagnostics` ArrayList: {}", .{ name, err });
+                    };
+                    continue;
+                }
+            }
+        }
+
+        // pseudo class & pseudo element selectors
+        const query_selectors = ts.Query.create(lang_css, QUERY_SELECTORS, &error_offset) catch |err| {
+            log.err("could not create tree-sitter query: {}", .{err});
+            return diagnostics.items;
+        };
+        defer query_selectors.destroy();
+        cursor.exec(query_selectors, root_node);
+        match_loop: while (cursor.nextMatch()) |match| {
+            const selector_node = match.captures[0].node;
+            const selector_name = code[selector_node.startByte()..selector_node.endByte()];
+
+            // contained in an ignore span? if so, skip
+            for (ignored_spans) |span| {
+                switch (span) {
+                    .row => |ignored_row| {
+                        if (selector_node.startPoint().row == ignored_row) continue :match_loop;
+                    },
+                    .region => |ignored_region| {
+                        if (selector_node.startPoint().row > ignored_region.row_start and selector_node.startPoint().row < ignored_region.row_end) continue :match_loop;
+                    },
+                }
+            }
+
+            if (bins.getSymbolSupportInfoFromBin(&.{
+                .{ .name = selector_name, .node_kind = .CssSelector },
+            })) |feature_info| {
+                if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                    allocator,
+                    &selector_node,
+                    .CssSelector,
+                    feature_info.support,
+                    start_column,
+                    start_row,
+                )) catch |err| {
+                    log.err("could not add diagnostic for CSS pseudo-selector '{s}' to `diagnostics` ArrayList: {}", .{ selector_name, err });
+                };
+            }
+
+            val_loop: for (match.captures[1..]) |capture| {
+                const node = capture.node;
+                const name = if (node_kind_str_to_enum.get(node.kind()) == types.TsNodeKind.CssUniversalSelector)
+                    "star"
+                else
+                    code[node.startByte()..node.endByte()];
+
+                // contained in an ignore span? if so, skip
+                for (ignored_spans) |span| {
+                    switch (span) {
+                        .row => |ignored_row| {
+                            if (node.startPoint().row == ignored_row) continue :val_loop;
+                        },
+                        .region => |ignored_region| {
+                            if (node.startPoint().row > ignored_region.row_start and node.startPoint().row < ignored_region.row_end) continue :val_loop;
+                        },
+                    }
+                }
+
+                const node_kind = node_kind_str_to_enum.get(node.kind()) orelse continue :val_loop;
+                if (bins.getSymbolSupportInfoFromBin(&.{
+                    .{ .name = selector_name, .node_kind = .CssSelector },
+                    .{ .name = name, .node_kind = node_kind },
+                })) |feature_info| {
+                    if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                        allocator,
+                        &node,
+                        node_kind,
+                        feature_info.support,
+                        start_column,
+                        start_row,
+                    )) catch |err| {
+                        log.err("could not add diagnostic for CSS property-inside-pseudo-selector '{s}' to `diagnostics` ArrayList: {}", .{ name, err });
                     };
                     continue;
                 }
