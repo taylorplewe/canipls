@@ -43,11 +43,6 @@ fn parse(
     start_column: u32,
     start_row: u32,
 ) []const lsp.types.Diagnostic {
-    // const QUERY_PROPS = "(property_name) @propname";
-    // const QUERY_AT_RULES = "(at_keyword) @atrule";
-    // const QUERY_PSEUDO_ELEMENT_SELECTORS = "(pseudo_element_selector (tag_name) @pseudoelementname)";
-    // const QUERY_PSEUDO_CLASS_SELECTORS = "(pseudo_class_selector (class_name) @pseudoelementname)";
-
     const QUERY_PROPERTIES =
         \\(
         \\  (property_name) @propname

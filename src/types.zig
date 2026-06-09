@@ -54,6 +54,8 @@ pub const TsNodeKind = enum {
             .CssAtRule => "at-rule",
             .CssSelector => "selector",
             .JsIdentifier => "API",
+            .JsPropertyIdentifier => "property",
+            .JsPrototypePropertyIdentifier => "method",
             else => "feature",
         };
     }
