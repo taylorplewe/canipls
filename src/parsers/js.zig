@@ -40,33 +40,57 @@ fn parse(
     start_row: u32,
 ) []const lsp.types.Diagnostic {
     const QUERY_IDENTIFIERS_AND_PROPERTIES =
-        \\(_
-        \\    value: [
-        \\        (identifier) @id
-        \\        (member_expression (identifier) @id (property_identifier) @prop)
-        \\        (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2)
-        \\        (member_expression (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2) (property_identifier) @prop3)
-        \\    ]
-        \\)
-        \\(call_expression
-        \\    function: [
-        \\        (identifier) @id
-        \\        (member_expression (identifier) @id (property_identifier) @prop)
-        \\        (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2)
-        \\        (member_expression (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2) (property_identifier) @prop3)
-        \\    ]
-        \\)
-        \\(expression_statement
-        \\    [
-        \\        (identifier) @id
-        \\        (member_expression (identifier) @id (property_identifier) @prop)
-        \\        (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2)
-        \\        (member_expression (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2) (property_identifier) @prop3)
-        \\    ]
-        \\)
+        \\[
+        \\    (_
+        \\        value: [
+        \\            (identifier) @id
+        \\            (member_expression (identifier) @id (property_identifier) @prop)
+        \\            (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2)
+        \\            (member_expression (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2) (property_identifier) @prop3)
+        \\        ]
+        \\    )
+        \\    (call_expression
+        \\        function: [
+        \\            (identifier) @id
+        \\            (member_expression (identifier) @id (property_identifier) @prop)
+        \\            (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2)
+        \\            (member_expression (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2) (property_identifier) @prop3)
+        \\        ]
+        \\    )
+        \\    (expression_statement
+        \\        [
+        \\            (identifier) @id
+        \\            (member_expression (identifier) @id (property_identifier) @prop)
+        \\            (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2)
+        \\            (member_expression (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2) (property_identifier) @prop3)
+        \\        ]
+        \\    )
+        \\]
     ;
 
-    // TODO: add JSX back in
+    // see the HTML query in `html.zig`
+    const QUERY_JSX_TAGS_AND_ATTRS =
+        \\[
+        \\  (jsx_opening_element
+        \\    name: (identifier) @tagname
+        \\    (jsx_attribute
+        \\      (property_identifier) @attrname
+        \\      (string
+        \\        (string_fragment) @attrval
+        \\      )?
+        \\    )*
+        \\  )
+        \\  (jsx_self_closing_element
+        \\    name: (identifier) @tagname
+        \\    (jsx_attribute
+        \\      (property_identifier) @attrname
+        \\      (string
+        \\        (string_fragment) @attrval
+        \\      )?
+        \\    )*
+        \\  )
+        \\]
+    ;
 
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -199,41 +223,6 @@ fn parse(
     }
 
     return diagnostics.items;
-
-    // const QUERY_IDENTIFIERS = "(identifier) @name";
-    // const QUERY_JSX_TAGS = "(jsx_opening_element (identifier) @tagname)";
-    // const QUERY_JSX_ATTRS = "(jsx_attribute (property_identifier) @attrname)";
-
-    // const symbols = [_]types.SymbolInfo{
-    //     .{
-    //         .element_kind = .JsApi,
-    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.JsIdentifier),
-    //         .ts_query_text = QUERY_IDENTIFIERS,
-    //     },
-    //     .{
-    //         .element_kind = .HtmlElement,
-    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.HtmlTag),
-    //         .ts_query_text = QUERY_JSX_TAGS,
-    //     },
-    //     .{
-    //         .element_kind = .HtmlAttribute,
-    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.HtmlAttribute),
-    //         .ts_query_text = QUERY_JSX_ATTRS,
-    //     },
-    // };
-
-    // return Parser.getDiagnosticsFromCode(
-    //     allocator,
-    //     lang_javascript,
-    //     code,
-    //     start_column,
-    //     start_row,
-    //     trimComment,
-    //     &symbols,
-    //     &.{},
-    // );
-    //
-    //
 }
 
 fn getHoverInfoAtPosition(
