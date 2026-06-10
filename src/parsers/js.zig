@@ -40,8 +40,24 @@ fn parse(
     start_row: u32,
 ) []const lsp.types.Diagnostic {
     const QUERY_IDENTIFIERS_AND_PROPERTIES =
-        \\(variable_declarator
+        \\(_
         \\    value: [
+        \\        (identifier) @id
+        \\        (member_expression (identifier) @id (property_identifier) @prop)
+        \\        (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2)
+        \\        (member_expression (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2) (property_identifier) @prop3)
+        \\    ]
+        \\)
+        \\(call_expression
+        \\    function: [
+        \\        (identifier) @id
+        \\        (member_expression (identifier) @id (property_identifier) @prop)
+        \\        (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2)
+        \\        (member_expression (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2) (property_identifier) @prop3)
+        \\    ]
+        \\)
+        \\(expression_statement
+        \\    [
         \\        (identifier) @id
         \\        (member_expression (identifier) @id (property_identifier) @prop)
         \\        (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2)
@@ -127,12 +143,9 @@ fn parse(
             symbol_stack.append(arena.allocator(), .{ .name = id_name, .node_kind = .JsIdentifier }) catch |err| {
                 log.err("could not build symbol stack in JS parse: {}", .{err});
             };
-            log.info("{s} num captures: {d}", .{ id_name, match.captures.len });
             for (match.captures[1..]) |capture| {
                 const node = capture.node;
                 const name = code[node.startByte()..node.endByte()];
-
-                log.info("{s} child: {s} size of symbol stack: {d}", .{ id_name, name, symbol_stack.items.len });
 
                 if (std.mem.eql(u8, name, "prototype")) {
                     if (!is_last_item_prototype) {
