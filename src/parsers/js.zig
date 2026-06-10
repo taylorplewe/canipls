@@ -33,38 +33,41 @@ fn init() void {
 fn deinit() void {
     lang_javascript.destroy();
 }
+var symbol_stack: [4]bins.BinSearchSymbolInfo = undefined;
+var symbol_stack_len: usize = 0;
 fn parse(
     allocator: std.mem.Allocator,
     code: []const u8,
     start_column: u32,
     start_row: u32,
 ) []const lsp.types.Diagnostic {
+    // NOTE: I hate this too. I played around with tree sitter's playground forever trying to find a way I could achieve what I'm trying to achieve. This was the *most sane* solution. I'm sure I'm still missing some cases.
     const QUERY_IDENTIFIERS_AND_PROPERTIES =
         \\[
-        \\    (_
-        \\        value: [
-        \\            (identifier) @id
-        \\            (member_expression (identifier) @id (property_identifier) @prop)
-        \\            (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2)
-        \\            (member_expression (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2) (property_identifier) @prop3)
-        \\        ]
-        \\    )
-        \\    (call_expression
-        \\        function: [
-        \\            (identifier) @id
-        \\            (member_expression (identifier) @id (property_identifier) @prop)
-        \\            (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2)
-        \\            (member_expression (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2) (property_identifier) @prop3)
-        \\        ]
-        \\    )
-        \\    (expression_statement
-        \\        [
-        \\            (identifier) @id
-        \\            (member_expression (identifier) @id (property_identifier) @prop)
-        \\            (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2)
-        \\            (member_expression (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2) (property_identifier) @prop3)
-        \\        ]
-        \\    )
+        \\  (_
+        \\    value: [
+        \\      (identifier) @id
+        \\      (member_expression (identifier) @id (property_identifier) @prop)
+        \\      (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2)
+        \\      (member_expression (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2) (property_identifier) @prop3)
+        \\    ]
+        \\  )
+        \\  (call_expression
+        \\    function: [
+        \\      (identifier) @id
+        \\      (member_expression (identifier) @id (property_identifier) @prop)
+        \\      (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2)
+        \\      (member_expression (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2) (property_identifier) @prop3)
+        \\    ]
+        \\  )
+        \\  (expression_statement
+        \\    [
+        \\      (identifier) @id
+        \\      (member_expression (identifier) @id (property_identifier) @prop)
+        \\      (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2)
+        \\      (member_expression (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2) (property_identifier) @prop3)
+        \\    ]
+        \\  )
         \\]
     ;
 
@@ -91,9 +94,6 @@ fn parse(
         \\  )
         \\]
     ;
-
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
 
     const parser = ts.Parser.create();
     defer parser.destroy();
@@ -162,12 +162,9 @@ fn parse(
                 };
             }
 
-            var symbol_stack: std.ArrayList(bins.BinSearchSymbolInfo) = .empty;
-            defer symbol_stack.deinit(arena.allocator());
             var is_last_item_prototype = false;
-            symbol_stack.append(arena.allocator(), .{ .name = id_name, .node_kind = .JsIdentifier }) catch |err| {
-                log.err("could not build symbol stack in JS parse: {}", .{err});
-            };
+            symbol_stack[0] = .{ .name = id_name, .node_kind = .JsIdentifier };
+            symbol_stack_len = 1;
             for (match.captures[1..]) |capture| {
                 const node = capture.node;
                 const name = code[node.startByte()..node.endByte()];
@@ -181,11 +178,9 @@ fn parse(
                 defer is_last_item_prototype = false;
 
                 // first, try regular (static) properties
-                symbol_stack.append(arena.allocator(), .{ .name = name, .node_kind = .JsPropertyIdentifier }) catch |err| {
-                    log.err("could not build symbol stack in JS parse: {}", .{err});
-                    continue;
-                };
-                if (bins.getSymbolSupportInfoFromBin(symbol_stack.items)) |feature_info| {
+                symbol_stack[symbol_stack_len] = .{ .name = name, .node_kind = .JsPropertyIdentifier };
+                symbol_stack_len += 1;
+                if (bins.getSymbolSupportInfoFromBin(symbol_stack[0..symbol_stack_len])) |feature_info| {
                     if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
                         allocator,
                         &node,
@@ -200,13 +195,11 @@ fn parse(
                 }
 
                 // then, try prototype properties
-                _ = symbol_stack.pop();
+                symbol_stack_len -= 1;
                 if (!is_last_item_prototype) continue;
-                symbol_stack.append(arena.allocator(), .{ .name = name, .node_kind = .JsPrototypePropertyIdentifier }) catch |err| {
-                    log.err("could not build symbol stack in JS parse: {}", .{err});
-                    continue;
-                };
-                if (bins.getSymbolSupportInfoFromBin(symbol_stack.items)) |feature_info| {
+                symbol_stack[symbol_stack_len] = .{ .name = name, .node_kind = .JsPrototypePropertyIdentifier };
+                symbol_stack_len += 1;
+                if (bins.getSymbolSupportInfoFromBin(symbol_stack[0..symbol_stack_len])) |feature_info| {
                     if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
                         allocator,
                         &node,
