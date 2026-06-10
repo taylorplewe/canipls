@@ -128,6 +128,7 @@ fn parse(
         };
         defer query.destroy();
 
+        // JavaScript identifiers
         cursor.exec(query, root_node);
         match_loop: while (cursor.nextMatch()) |match| {
             const id_node = match.captures[0].node;
@@ -221,6 +222,7 @@ fn parse(
             }
         }
 
+        // JSX elements & attributes
         const query_jsx = ts.Query.create(lang_javascript, QUERY_JSX_TAGS_AND_ATTRS, &error_offset) catch |err| {
             log.err("could not create tree-sitter query: {}", .{err});
             return diagnostics.items;
