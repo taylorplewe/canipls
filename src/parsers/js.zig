@@ -220,6 +220,119 @@ fn parse(
                 }
             }
         }
+
+        const query_jsx = ts.Query.create(lang_javascript, QUERY_JSX_TAGS_AND_ATTRS, &error_offset) catch |err| {
+            log.err("could not create tree-sitter query: {}", .{err});
+            return diagnostics.items;
+        };
+        defer query_jsx.destroy();
+
+        cursor.exec(query_jsx, root_node);
+        match_loop: while (cursor.nextMatch()) |match| {
+            const tag_node = match.captures[0].node;
+            const tag_name = code[tag_node.startByte()..tag_node.endByte()];
+
+            // contained in an ignore span? if so, skip
+            for (ignored_spans) |span| {
+                switch (span) {
+                    .row => |ignored_row| {
+                        if (tag_node.startPoint().row == ignored_row) continue :match_loop;
+                    },
+                    .region => |ignored_region| {
+                        if (tag_node.startPoint().row > ignored_region.row_start and tag_node.startPoint().row < ignored_region.row_end) continue :match_loop;
+                    },
+                }
+            }
+
+            const maybe_tag_feature_info = bins.getSymbolSupportInfoFromBin(&.{.{ .name = tag_name, .node_kind = .HtmlTag }});
+            if (maybe_tag_feature_info) |feature_info| {
+                if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                    allocator,
+                    &tag_node,
+                    .HtmlTag,
+                    feature_info.support,
+                    start_column,
+                    start_row,
+                )) catch |err| {
+                    log.err("could not add diagnostic for HTML tag {s} to `diagnostics` ArrayList: {}", .{ tag_name, err });
+                };
+            }
+
+            var last_attr_name: ?[]const u8 = null;
+            for (match.captures[1..]) |capture| {
+                const node = capture.node;
+                const name = code[node.startByte()..node.endByte()];
+                if (last_attr_name != null and std.mem.eql(u8, capture.node.kind(), "string_fragment")) {
+                    defer last_attr_name = null;
+                    if (bins.getSymbolSupportInfoFromBin(&.{
+                        .{ .name = last_attr_name.?, .node_kind = .HtmlAttribute },
+                        .{ .name = name, .node_kind = .HtmlStringLiteral },
+                    })) |feature_info| {
+                        if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                            allocator,
+                            &node,
+                            .HtmlStringLiteral,
+                            feature_info.support,
+                            start_column,
+                            start_row,
+                        )) catch |err| {
+                            log.err("could not add diagnostic for HTML attribute value {s} to `diagnostics` ArrayList: {}", .{ name, err });
+                        };
+                        continue;
+                    }
+                    if (bins.getSymbolSupportInfoFromBin(&.{
+                        .{ .name = tag_name, .node_kind = .HtmlTag },
+                        .{ .name = last_attr_name.?, .node_kind = .HtmlAttribute },
+                        .{ .name = name, .node_kind = .HtmlStringLiteral },
+                    })) |feature_info| {
+                        if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                            allocator,
+                            &node,
+                            .HtmlStringLiteral,
+                            feature_info.support,
+                            start_column,
+                            start_row,
+                        )) catch |err| {
+                            log.err("could not add diagnostic for HTML attribute value {s} to `diagnostics` ArrayList: {}", .{ name, err });
+                        };
+                        continue;
+                    }
+                } else {
+                    last_attr_name = name;
+                    if (bins.getSymbolSupportInfoFromBin(&.{
+                        .{ .name = name, .node_kind = .HtmlAttribute },
+                    })) |feature_info| {
+                        if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                            allocator,
+                            &node,
+                            .HtmlAttribute,
+                            feature_info.support,
+                            start_column,
+                            start_row,
+                        )) catch |err| {
+                            log.err("could not add diagnostic for HTML attribute {s} to `diagnostics` ArrayList: {}", .{ name, err });
+                        };
+                        continue;
+                    }
+                    if (bins.getSymbolSupportInfoFromBin(&.{
+                        .{ .name = tag_name, .node_kind = .HtmlTag },
+                        .{ .name = name, .node_kind = .HtmlAttribute },
+                    })) |feature_info| {
+                        if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                            allocator,
+                            &node,
+                            .HtmlAttribute,
+                            feature_info.support,
+                            start_column,
+                            start_row,
+                        )) catch |err| {
+                            log.err("could not add diagnostic for HTML attribute {s} to `diagnostics` ArrayList: {}", .{ name, err });
+                        };
+                        continue;
+                    }
+                }
+            }
+        }
     }
 
     return diagnostics.items;
