@@ -72,7 +72,8 @@
 // I just need to know how to map capture order -> symbol_stack
 
 
-fn nodeCallback(node: *ts.Node, is_first_node: bool) []const BinSearchSymbolInfo {}
+/// Function that will be called on each node in order after parsing some code with a tree-sitter query. Will return a list of symbol stacks to search the bin files for, in order of precedence.
+fn nodeCallback(node: *ts.Node, is_first_node: bool) []const []const BinSearchSymbolInfo {}
 
 // the abstracted Parser function could do the following for every single node:
 
@@ -90,26 +91,30 @@ fn nodeCallback(node: *ts.Node, is_first_node: bool) []const BinSearchSymbolInfo
         }
     }
 
-    const symbol_stack = nodeCallback(&node);
+    const symbol_stacks = nodeCallback(&node);
 
-    if (bins.getSymbolSupportInfoFromBin(symbol_stack)) |feature_info| {
-        if (feature_info.support < config.config.support_threshold) {
-            // already found one as a child of one of the previous queries? those take precedence
-            // TODO: see if this is the most efficient way of checking this
-            // this effectively moves parsing a file & adding diagnostics from O(n) -> O(n log n)
-            for (diagnostics.items) |diagnostic| {
-                if (diagnostic.range.start.line == node.startPoint().row and diagnostic.range.start.character == node.startPoint().column)
-                    continue :match_loop;
+
+    for (symbol_stacks) |symbol_stack| {
+        if (bins.getSymbolSupportInfoFromBin(symbol_stack)) |feature_info| {
+            if (feature_info.support < config.config.support_threshold) {
+                // already found one as a child of one of the previous queries? those take precedence
+                // TODO: see if this is the most efficient way of checking this
+                // this effectively moves parsing a file & adding diagnostics from O(n) -> O(n log n)
+                for (diagnostics.items) |diagnostic| {
+                    if (diagnostic.range.start.line == node.startPoint().row and diagnostic.range.start.character == node.startPoint().column)
+                        continue :match_loop;
+                }
+                diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                    allocator,
+                    &prop_node,
+                    symbol_stack[symbol_stack.len - 1].node_kind,
+                    feature_info.support,
+                    start_column,
+                    start_row,
+                )) catch |err| {
+                    log.err("could not add diagnostic for CSS property '{s}' to `diagnostics` ArrayList: {}", .{ symbol_stack[symbol_stack.len - 1].name, err });
+                };
             }
-            diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
-                allocator,
-                &prop_node,
-                symbol_stack[symbol_stack.len - 1].node_kind,
-                feature_info.support,
-                start_column,
-                start_row,
-            )) catch |err| {
-                log.err("could not add diagnostic for CSS property '{s}' to `diagnostics` ArrayList: {}", .{ symbol_stack[symbol_stack.len - 1].name, err });
-            };
+            break;
         }
     }
