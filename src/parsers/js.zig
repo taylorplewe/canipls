@@ -40,29 +40,14 @@ fn parse(
     start_row: u32,
 ) []const lsp.types.Diagnostic {
     const QUERY_IDENTIFIERS_AND_PROPERTIES =
-        \\[
-        \\  (member_expression
-        \\    object: (identifier) @identifier
-        \\    property: (property_identifier) @prop1
-        \\  )
-        \\  (member_expression
-        \\    object: (member_expression
-        \\      object: (identifier)
-        \\      property: (property_identifier)
-        \\    )
-        \\    property: (property_identifier) @prop2
-        \\  )
-        \\  (member_expression
-        \\    object: (member_expression
-        \\      object: (member_expression
-        \\        object: (identifier)
-        \\        property: (property_identifier)
-        \\      )
-        \\      property: (property_identifier)
-        \\    )
-        \\    property: (property_identifier) @prop3
-        \\  )
-        \\]
+        \\(variable_declarator
+        \\    value: [
+        \\        (identifier) @id
+        \\        (member_expression (identifier) @id (property_identifier) @prop)
+        \\        (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2)
+        \\        (member_expression (member_expression (member_expression (identifier) @id (property_identifier) @prop) (property_identifier) @prop2) (property_identifier) @prop3)
+        \\    ]
+        \\)
     ;
 
     // TODO: add JSX back in
