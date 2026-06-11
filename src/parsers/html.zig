@@ -125,8 +125,6 @@ pub fn parseHtmlAndReturnDiagnostics(
         ) std.mem.Allocator.Error![]const []const bins.BinSearchSymbolInfo {
             const name = c[node.startByte()..node.endByte()];
 
-            log.info("reached callback", .{});
-
             if (is_first_node) {
                 tag_name = name;
                 return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
@@ -201,19 +199,6 @@ pub fn parseHtmlAndReturnDiagnostics(
     //         };
     //     }
     // }
-
-    // return diagnostics.items;
-
-    // return Parser.getDiagnosticsFromCode(
-    //     allocator,
-    //     lang,
-    //     code,
-    //     start_column,
-    //     start_row,
-    //     trimComment,
-    //     &symbols,
-    //     &injections,
-    // );
 }
 
 pub fn trimComment(in: []const u8) []const u8 {

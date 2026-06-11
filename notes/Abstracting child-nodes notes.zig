@@ -76,6 +76,17 @@
 /// Function that will be called on each node in order after parsing some code with a tree-sitter query. Will return a list of symbol stacks to search the bin files for, in order of precedence.
 fn nodeCallback(node: *ts.Node, is_first_node: bool) []const []const BinSearchSymbolInfo {}
 
+// params needed for abstracted Parser function:
+    // temp_allocator: std.mem.Allocator,
+    // lang: *ts.Language,
+    // code: []const u8,
+    // code_offset_column: u32,
+    // code_offset_row: u32,
+    // comment_trim_fn: *const fn (in: []const u8) []const u8,
+    // injections: []const InjectionParseInfo,
+    // queries
+    // callbacks
+
 // the abstracted Parser function could do the following for every single node:
 
     var node = match.captures[0].node;

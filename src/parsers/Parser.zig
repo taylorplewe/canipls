@@ -156,19 +156,6 @@ pub fn processCode(
                         }
                         allocator.free(symbol_stacks);
                     }
-                    // defer for (symbol_stacks) |stack| {
-                    //     for (stack) |symbol_info| {
-                    //         allocator.free(symbol_info);
-                    //     }
-                    // };
-
-                    log.info("symbol_stacks len: {d}", .{symbol_stacks.len});
-                    if (symbol_stacks.len > 0) {
-                        log.info("symbol_stacks[0].len: {d}", .{symbol_stacks[0].len});
-                        if (symbol_stacks[0].len > 0) {
-                            log.info("symbol_stacks[0][0].name: {s}", .{symbol_stacks[0][0].name});
-                        }
-                    }
 
                     // take the symbol stacks and search the bin files for support info
                     symbol_stack_loop: for (symbol_stacks) |symbol_stack| {
