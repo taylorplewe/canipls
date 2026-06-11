@@ -49,16 +49,17 @@
             if (bins.getSymbolSupportInfoFromBin(&.{
                 .{ .name = at_rule_name, .node_kind = .MyKind },
             })) |feature_info| {
-                if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
-                    allocator,
-                    &toplevel_node,
-                    .MyKind,
-                    feature_info.support,
-                    start_column,
-                    start_row,
-                )) catch |err| {
-                    log.err("could not add diagnostic for toplevel feature '{s}' to `diagnostics` ArrayList: {}", .{ toplevel_name, err });
-                };
+                if (feature_info.support < config.config.support_threshold)
+                    diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
+                        allocator,
+                        &toplevel_node,
+                        .MyKind,
+                        feature_info.support,
+                        start_column,
+                        start_row,
+                    )) catch |err| {
+                        log.err("could not add diagnostic for toplevel feature '{s}' to `diagnostics` ArrayList: {}", .{ toplevel_name, err });
+                    };
             }
 
             // the way each parser handles child nodes is slightly different.

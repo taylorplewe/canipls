@@ -189,7 +189,7 @@ pub fn parseHtmlAndReturnDiagnostics(
                 const node = capture.node;
                 const name = code[node.startByte()..node.endByte()];
 
-                if (last_attr_name != null and std.mem.eql(u8, capture.node.kind(), "attribute_value")) {
+                if (last_attr_name != null and std.mem.eql(u8, node.kind(), "attribute_value")) {
                     if (bins.getSymbolSupportInfoFromBin(&.{
                         .{ .name = last_attr_name.?, .node_kind = .HtmlAttribute },
                         .{ .name = name, .node_kind = .HtmlStringLiteral },

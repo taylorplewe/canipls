@@ -1,5 +1,6 @@
 const std = @import("std");
 const lsp = @import("lsp");
+const ts = @import("tree-sitter");
 
 const bins = @import("parsers/bins.zig");
 
@@ -74,11 +75,10 @@ pub const TsNodeKind = enum {
 //     .{ "tag_name", .HtmlTag },
 // });
 
-pub const SymbolInfo = struct {
+/// For each of these passed to `Parser.getDiagnosticsFromCode()`, it will search a set of code for features with low browser support
+pub const QueryInfo = struct {
     ts_query_text: []const u8,
-    support_bin: *const bins.Bin,
-    node_kind: TsNodeKind,
-    name_trim_start: usize = 0,
+    perNodeCallback: *const fn (node: *ts.Node, is_first_node: bool) []const []const bins.BinSearchSymbolInfo,
 };
 pub const InjectionParseInfo = struct {
     ts_query_text: []const u8,
