@@ -186,8 +186,14 @@ fn parse(
         start_row,
         trimComment,
         &.{
-            .{ .ts_query_text = QUERY_IDENTIFIERS_AND_PROPERTIES, .perNodeCallback = JsIdentifiersContext.callback },
-            .{ .ts_query_text = QUERY_JSX_TAGS_AND_ATTRS, .perNodeCallback = JsxContext.callback },
+            .{
+                .ts_query_text = QUERY_IDENTIFIERS_AND_PROPERTIES,
+                .perNodeCallback = JsIdentifiersContext.callback,
+            },
+            .{
+                .ts_query_text = QUERY_JSX_TAGS_AND_ATTRS,
+                .perNodeCallback = JsxContext.callback,
+            },
         },
         &.{},
         .Diagnostics,

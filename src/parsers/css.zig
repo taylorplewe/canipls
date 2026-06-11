@@ -192,9 +192,18 @@ fn parse(
         start_row,
         trimComment,
         &.{
-            .{ .ts_query_text = QUERY_AT_RULES, .perNodeCallback = AtRulesContext.callback },
-            .{ .ts_query_text = QUERY_PROPERTIES, .perNodeCallback = PropertiesContext.callback },
-            .{ .ts_query_text = QUERY_SELECTORS, .perNodeCallback = SelectorsContext.callback },
+            .{
+                .ts_query_text = QUERY_AT_RULES,
+                .perNodeCallback = AtRulesContext.callback,
+            },
+            .{
+                .ts_query_text = QUERY_PROPERTIES,
+                .perNodeCallback = PropertiesContext.callback,
+            },
+            .{
+                .ts_query_text = QUERY_SELECTORS,
+                .perNodeCallback = SelectorsContext.callback,
+            },
         },
         &.{},
         .Diagnostics,

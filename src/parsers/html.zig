@@ -165,7 +165,10 @@ pub fn parseHtmlAndReturnDiagnostics(
         start_row,
         trimComment,
         &.{
-            .{ .ts_query_text = TagsAndAttrsContext.QUERY_TAGS_AND_ATTRS, .perNodeCallback = TagsAndAttrsContext.callback },
+            .{
+                .ts_query_text = TagsAndAttrsContext.QUERY_TAGS_AND_ATTRS,
+                .perNodeCallback = TagsAndAttrsContext.callback,
+            },
         },
         &injections,
         .Diagnostics,
