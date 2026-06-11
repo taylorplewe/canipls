@@ -161,7 +161,14 @@ pub fn processCode(
                     symbol_stack_loop: for (symbol_stacks) |symbol_stack| {
                         const maybe_feature_info = bins.getSymbolSupportInfoFromBin(symbol_stack);
                         if (maybe_feature_info) |feature_info| {
-                            if (feature_info.support < config.config.support_threshold)
+                            // already found one as a child of one of the previous queries? those take precedence
+                            // TODO: see if this is the most efficient way of checking this
+                            // this effectively moves parsing a file & adding diagnostics from O(n) -> O(n log n)
+                            for (diagnostics.items) |diagnostic| {
+                                if (diagnostic.range.start.line == node.startPoint().row and diagnostic.range.start.character == node.startPoint().column)
+                                    continue :symbol_stack_loop;
+                            }
+                            if (feature_info.support < config.config.support_threshold) {
                                 diagnostics.append(allocator, getLspDiagnosticFromTsNode(
                                     allocator,
                                     &node,
@@ -172,6 +179,7 @@ pub fn processCode(
                                 )) catch |err| {
                                     log.err("could not add diagnostic for symbol {s} to `diagnostics` ArrayList: {}", .{ symbol_stack[symbol_stack.len - 1].name, err });
                                 };
+                            }
                             break :symbol_stack_loop;
                         }
                     }
