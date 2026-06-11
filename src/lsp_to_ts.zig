@@ -59,13 +59,13 @@ fn getParserFromLspLanguageKind(language_kind: lsp.types.TextDocument.LanguageKi
 }
 
 pub fn parseCodeAndGetDiagnostics(
-    allocator: std.mem.Allocator,
+    temp_allocator: std.mem.Allocator,
     language_kind: lsp.types.TextDocument.LanguageKind,
     code: []const u8,
 ) []const lsp.types.Diagnostic {
     const parser = getParserFromLspLanguageKind(language_kind) orelse return &.{};
     return parser.parse(
-        allocator,
+        temp_allocator,
         code,
         0,
         0,

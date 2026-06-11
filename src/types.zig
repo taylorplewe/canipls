@@ -78,7 +78,12 @@ pub const TsNodeKind = enum {
 /// For each of these passed to `Parser.getDiagnosticsFromCode()`, it will search a set of code for features with low browser support
 pub const QueryInfo = struct {
     ts_query_text: []const u8,
-    perNodeCallback: *const fn (node: *ts.Node, is_first_node: bool) []const []const bins.BinSearchSymbolInfo,
+    perNodeCallback: *const fn (
+        node: *const ts.Node,
+        is_first_node: bool,
+        code: []const u8,
+        allocator: std.mem.Allocator,
+    ) std.mem.Allocator.Error![]const []const bins.BinSearchSymbolInfo,
 };
 pub const InjectionParseInfo = struct {
     ts_query_text: []const u8,

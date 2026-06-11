@@ -103,17 +103,18 @@ fn parse(
     const parse_res = parser.parseString(code, null);
     if (parse_res) |ast| {
         defer ast.destroy();
-        var root_node = ast.rootNode();
+        const root_node = ast.rootNode();
 
-        const ignored_spans = Parser.getIgnoreSpansFromCode(
-            allocator,
-            lang_css,
-            &root_node,
-            trimComment,
-            &diagnostics,
-            code,
-        );
-        defer allocator.free(ignored_spans);
+        // const ignored_spans = Parser.getIgnoreSpansFromCode(
+        //     allocator,
+        //     lang_css,
+        //     &root_node,
+        //     trimComment,
+        //     &diagnostics,
+        //     code,
+        // );
+        // defer allocator.free(ignored_spans);
+        const ignored_spans: []types.IgnoredSpan = &.{};
 
         var error_offset: u32 = 0;
         const cursor = ts.QueryCursor.create();

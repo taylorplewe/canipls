@@ -88,7 +88,9 @@ pub fn processCode(
     queries: []const types.QueryInfo,
     injections: []const types.InjectionParseInfo,
     process_mode: ProcessMode,
-) ProcessResult {
+) []lsp.types.Diagnostic {
+    _ = process_mode; // autofix
+    _ = injections; // autofix
     const parser = ts.Parser.create();
     defer parser.destroy();
     parser.setLanguage(lang) catch return &.{};
@@ -139,7 +141,34 @@ pub fn processCode(
                     }
 
                     // each syntax type looks for symbols differently; this is done through callbacks provided to this function
-                    const symbol_stacks = query_info.perNodeCallback(&node, capture_index == 0);
+                    const symbol_stacks = query_info.perNodeCallback(
+                        &node,
+                        capture_index == 0,
+                        code,
+                        allocator,
+                    ) catch |err| {
+                        log.err("could not get symbol stack: {}", .{err});
+                        continue :capture_loop;
+                    };
+                    defer {
+                        for (symbol_stacks) |stack| {
+                            allocator.free(stack);
+                        }
+                        allocator.free(symbol_stacks);
+                    }
+                    // defer for (symbol_stacks) |stack| {
+                    //     for (stack) |symbol_info| {
+                    //         allocator.free(symbol_info);
+                    //     }
+                    // };
+
+                    log.info("symbol_stacks len: {d}", .{symbol_stacks.len});
+                    if (symbol_stacks.len > 0) {
+                        log.info("symbol_stacks[0].len: {d}", .{symbol_stacks[0].len});
+                        if (symbol_stacks[0].len > 0) {
+                            log.info("symbol_stacks[0][0].name: {s}", .{symbol_stacks[0][0].name});
+                        }
+                    }
 
                     // take the symbol stacks and search the bin files for support info
                     symbol_stack_loop: for (symbol_stacks) |symbol_stack| {
@@ -166,87 +195,7 @@ pub fn processCode(
 
     // TODO: injections
 
-    switch (process_mode) {
-        .Diagnostics => return .{ .Diagnostics = diagnostics },
-        else => return .{ .Diagnostics = &.{} }, // TODO
-    }
-
-    //     for (symbols) |symbol_info| {
-    //         const query = ts.Query.create(lang, symbol_info.ts_query_text, &error_offset) catch |err| {
-    //             log.err("could not create tree-sitter query: {}", .{err});
-    //             return diagnostics.items;
-    //         };
-    //         defer query.destroy();
-
-    //         cursor.exec(query, root_node);
-    //         match_loop: while (cursor.nextMatch()) |match| {
-    //             const node = match.captures[0].node;
-    //             // const name = code[node.startByte()..node.endByte()][symbol_info.name_trim_start..];
-
-    //             // contained in an ignore span? if so, skip
-    //             for (ignored_spans.items) |span| {
-    //                 switch (span) {
-    //                     .row => |ignored_row| {
-    //                         if (node.startPoint().row == ignored_row) continue :match_loop;
-    //                     },
-    //                     .region => |ignored_region| {
-    //                         if (node.startPoint().row > ignored_region.row_start and node.startPoint().row < ignored_region.row_end) continue :match_loop;
-    //                     },
-    //                 }
-    //             }
-
-    //             // look up this symbol in the appropriate support bin file
-    //             // const maybe_feature_info = bins.getSupportPercentageAndCiuIdForIdentifierFromBin(name, symbol_info.support_bin);
-    //             const maybe_feature_info: ?struct { f32, []const u8 } = null;
-    //             if (maybe_feature_info) |feature_info| {
-    //                 const percentage, const ciu_id = feature_info;
-    //                 _ = ciu_id; // autofix
-    //                 if (percentage < config.config.support_threshold) diagnostics.append(allocator, getLspDiagnosticFromTsNode(
-    //                     allocator,
-    //                     &node,
-    //                     symbol_info.element_kind,
-    //                     percentage,
-    //                     code_offset_column,
-    //                     code_offset_row,
-    //                 )) catch |err| {
-    //                     log.err("could not add diagnostic to `diagnostics` ArrayList: {}", .{err});
-    //                     return diagnostics.items;
-    //                 };
-    //             }
-    //         }
-    //     }
-
-    //     for (injections) |injection_info| {
-    //         const query = ts.Query.create(lang, injection_info.ts_query_text, &error_offset) catch |err| {
-    //             log.err("could not create tree-sitter query: {}", .{err});
-    //             return &.{};
-    //         };
-    //         defer query.destroy();
-
-    //         // injection languages inside this language
-    //         cursor.exec(query, root_node);
-    //         while (cursor.nextMatch()) |match| {
-    //             const injection_node = match.captures[0].node;
-    //             const injection_code = code[injection_node.startByte()..injection_node.endByte()];
-
-    //             const injection_diagnostics = injection_info.injection_parse_fn(
-    //                 allocator,
-    //                 injection_code,
-    //                 injection_node.startPoint().column,
-    //                 injection_node.startPoint().row,
-    //             );
-
-    //             diagnostics.appendSlice(allocator, injection_diagnostics) catch |err| {
-    //                 log.err("could not add injection diagnostics to `diagnostics` ArrayList: {}", .{err});
-    //                 return diagnostics.items;
-    //             };
-    //         }
-    //     }
-    // }
-
-    // return diagnostics.items;
-    //
-    return &.{};
+    return diagnostics.toOwnedSlice(allocator) catch &.{};
 }
 
 pub fn getHoverDocFromCodeAtPosition(

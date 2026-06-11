@@ -111,185 +111,98 @@ pub fn parseHtmlAndReturnDiagnostics(
             .ts_query_text = QUERY_STYLE_BLOCKS,
         },
     };
+    _ = injections; // autofix
 
-    const QUERY_COMMENT = "(comment) @comment"; // this is the same for all 3 TS parsers; HTML, CSS and JS.
+    const Context = struct {
+        var last_attr_name: ?[]const u8 = null;
+        var tag_name: ?[]const u8 = null;
 
-    const parser = ts.Parser.create();
-    defer parser.destroy();
-    parser.setLanguage(lang) catch return &.{};
+        pub fn callback(
+            node: *const ts.Node,
+            is_first_node: bool,
+            c: []const u8,
+            a: std.mem.Allocator,
+        ) std.mem.Allocator.Error![]const []const bins.BinSearchSymbolInfo {
+            const name = c[node.startByte()..node.endByte()];
 
-    var diagnostics: std.ArrayList(lsp.types.Diagnostic) = .empty;
+            log.info("reached callback", .{});
 
-    const parse_res = parser.parseString(code, null);
-    if (parse_res) |ast| {
-        defer ast.destroy();
-
-        var root_node = ast.rootNode();
-
-        var error_offset: u32 = 0;
-
-        const cursor = ts.QueryCursor.create();
-        defer cursor.destroy();
-
-        const comment_query = ts.Query.create(lang, QUERY_COMMENT, &error_offset) catch |err| {
-            log.err("could not create tree-sitter comment query: {}", .{err});
-            return &.{};
-        };
-        defer comment_query.destroy();
-
-        const ignored_spans = Parser.getIgnoreSpansFromCode(
-            allocator,
-            lang,
-            &root_node,
-            trimComment,
-            &diagnostics,
-            code,
-        );
-        defer allocator.free(ignored_spans);
-
-        const query = ts.Query.create(lang, QUERY_TAGS_AND_ATTRS, &error_offset) catch |err| {
-            log.err("could not create tree-sitter query: {}", .{err});
-            return diagnostics.items;
-        };
-        defer query.destroy();
-
-        cursor.exec(query, root_node);
-        match_loop: while (cursor.nextMatch()) |match| {
-            const tag_node = match.captures[0].node;
-            const tag_name = code[tag_node.startByte()..tag_node.endByte()];
-
-            // contained in an ignore span? if so, skip
-            for (ignored_spans) |span| {
-                switch (span) {
-                    .row => |ignored_row| {
-                        if (tag_node.startPoint().row == ignored_row) continue :match_loop;
-                    },
-                    .region => |ignored_region| {
-                        if (tag_node.startPoint().row > ignored_region.row_start and tag_node.startPoint().row < ignored_region.row_end) continue :match_loop;
-                    },
-                }
-            }
-
-            const maybe_tag_feature_info = bins.getSymbolSupportInfoFromBin(&.{.{ .name = tag_name, .node_kind = .HtmlTag }});
-            if (maybe_tag_feature_info) |feature_info| {
-                if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
-                    allocator,
-                    &tag_node,
-                    .HtmlTag,
-                    feature_info.support,
-                    start_column,
-                    start_row,
-                )) catch |err| {
-                    log.err("could not add diagnostic for HTML tag {s} to `diagnostics` ArrayList: {}", .{ tag_name, err });
-                };
-            }
-
-            var last_attr_name: ?[]const u8 = null;
-            for (match.captures[1..]) |capture| {
-                const node = capture.node;
-                const name = code[node.startByte()..node.endByte()];
-
-                if (last_attr_name != null and std.mem.eql(u8, node.kind(), "attribute_value")) {
-                    if (bins.getSymbolSupportInfoFromBin(&.{
+            if (is_first_node) {
+                tag_name = name;
+                return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
+                    try a.dupe(bins.BinSearchSymbolInfo, &.{
+                        .{ .name = name, .node_kind = .HtmlTag },
+                    }),
+                });
+            } else if (last_attr_name != null and std.mem.eql(u8, node.kind(), "attribute_value")) {
+                return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
+                    try a.dupe(bins.BinSearchSymbolInfo, &.{
                         .{ .name = last_attr_name.?, .node_kind = .HtmlAttribute },
                         .{ .name = name, .node_kind = .HtmlStringLiteral },
-                    })) |feature_info| {
-                        if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
-                            allocator,
-                            &node,
-                            .HtmlStringLiteral,
-                            feature_info.support,
-                            start_column,
-                            start_row,
-                        )) catch |err| {
-                            log.err("could not add diagnostic for HTML attribute value {s} to `diagnostics` ArrayList: {}", .{ name, err });
-                        };
-                        continue;
-                    }
-                    if (bins.getSymbolSupportInfoFromBin(&.{
-                        .{ .name = tag_name, .node_kind = .HtmlTag },
+                    }),
+                    try a.dupe(bins.BinSearchSymbolInfo, &.{
+                        .{ .name = tag_name.?, .node_kind = .HtmlTag },
                         .{ .name = last_attr_name.?, .node_kind = .HtmlAttribute },
                         .{ .name = name, .node_kind = .HtmlStringLiteral },
-                    })) |feature_info| {
-                        if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
-                            allocator,
-                            &node,
-                            .HtmlStringLiteral,
-                            feature_info.support,
-                            start_column,
-                            start_row,
-                        )) catch |err| {
-                            log.err("could not add diagnostic for HTML attribute value {s} to `diagnostics` ArrayList: {}", .{ name, err });
-                        };
-                        continue;
-                    }
-                    last_attr_name = null;
-                } else {
-                    last_attr_name = name;
-                    if (bins.getSymbolSupportInfoFromBin(&.{
+                    }),
+                });
+            } else {
+                last_attr_name = name;
+                return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
+                    try a.dupe(bins.BinSearchSymbolInfo, &.{
                         .{ .name = name, .node_kind = .HtmlAttribute },
-                    })) |feature_info| {
-                        if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
-                            allocator,
-                            &node,
-                            .HtmlAttribute,
-                            feature_info.support,
-                            start_column,
-                            start_row,
-                        )) catch |err| {
-                            log.err("could not add diagnostic for HTML attribute {s} to `diagnostics` ArrayList: {}", .{ name, err });
-                        };
-                        continue;
-                    }
-                    if (bins.getSymbolSupportInfoFromBin(&.{
-                        .{ .name = tag_name, .node_kind = .HtmlTag },
+                    }),
+                    try a.dupe(bins.BinSearchSymbolInfo, &.{
+                        .{ .name = tag_name.?, .node_kind = .HtmlTag },
                         .{ .name = name, .node_kind = .HtmlAttribute },
-                    })) |feature_info| {
-                        if (feature_info.support < config.config.support_threshold) diagnostics.append(allocator, Parser.getLspDiagnosticFromTsNode(
-                            allocator,
-                            &node,
-                            .HtmlAttribute,
-                            feature_info.support,
-                            start_column,
-                            start_row,
-                        )) catch |err| {
-                            log.err("could not add diagnostic for HTML attribute {s} to `diagnostics` ArrayList: {}", .{ name, err });
-                        };
-                        continue;
-                    }
-                }
+                    }),
+                });
             }
         }
+    };
 
-        for (injections) |injection_info| {
-            const inj_query = ts.Query.create(lang, injection_info.ts_query_text, &error_offset) catch |err| {
-                log.err("could not create tree-sitter query: {}", .{err});
-                return &.{};
-            };
-            defer inj_query.destroy();
+    return Parser.processCode(
+        allocator,
+        lang,
+        code,
+        start_row,
+        start_column,
+        trimComment,
+        &.{
+            .{ .ts_query_text = QUERY_TAGS_AND_ATTRS, .perNodeCallback = Context.callback },
+        },
+        &.{},
+        .Diagnostics,
+    );
 
-            // injection languages inside this language
-            cursor.exec(inj_query, root_node);
-            while (cursor.nextMatch()) |match| {
-                const injection_node = match.captures[0].node;
-                const injection_code = code[injection_node.startByte()..injection_node.endByte()];
+    // for (injections) |injection_info| {
+    //     const inj_query = ts.Query.create(lang, injection_info.ts_query_text, &error_offset) catch |err| {
+    //         log.err("could not create tree-sitter query: {}", .{err});
+    //         return &.{};
+    //     };
+    //     defer inj_query.destroy();
 
-                const injection_diagnostics = injection_info.injection_parse_fn(
-                    allocator,
-                    injection_code,
-                    injection_node.startPoint().column,
-                    injection_node.startPoint().row,
-                );
+    //     // injection languages inside this language
+    //     cursor.exec(inj_query, root_node);
+    //     while (cursor.nextMatch()) |match| {
+    //         const injection_node = match.captures[0].node;
+    //         const injection_code = code[injection_node.startByte()..injection_node.endByte()];
 
-                diagnostics.appendSlice(allocator, injection_diagnostics) catch |err| {
-                    log.err("could not add injection diagnostics to `diagnostics` ArrayList: {}", .{err});
-                    return diagnostics.items;
-                };
-            }
-        }
-    }
+    //         const injection_diagnostics = injection_info.injection_parse_fn(
+    //             allocator,
+    //             injection_code,
+    //             injection_node.startPoint().column,
+    //             injection_node.startPoint().row,
+    //         );
 
-    return diagnostics.items;
+    //         diagnostics.appendSlice(allocator, injection_diagnostics) catch |err| {
+    //             log.err("could not add injection diagnostics to `diagnostics` ArrayList: {}", .{err});
+    //             return diagnostics.items;
+    //         };
+    //     }
+    // }
+
+    // return diagnostics.items;
 
     // return Parser.getDiagnosticsFromCode(
     //     allocator,

@@ -105,22 +105,23 @@ fn parse(
     if (parse_res) |ast| {
         defer ast.destroy();
 
-        var root_node = ast.rootNode();
+        const root_node = ast.rootNode();
 
         var error_offset: u32 = 0;
 
         const cursor = ts.QueryCursor.create();
         defer cursor.destroy();
 
-        const ignored_spans = Parser.getIgnoreSpansFromCode(
-            allocator,
-            lang_javascript,
-            &root_node,
-            trimComment,
-            &diagnostics,
-            code,
-        );
-        defer allocator.free(ignored_spans);
+        // const ignored_spans = Parser.getIgnoreSpansFromCode(
+        //     allocator,
+        //     lang_javascript,
+        //     &root_node,
+        //     trimComment,
+        //     &diagnostics,
+        //     code,
+        // );
+        // defer allocator.free(ignored_spans);
+        const ignored_spans: []types.IgnoredSpan = &.{};
 
         const query = ts.Query.create(lang_javascript, QUERY_IDENTIFIERS_AND_PROPERTIES, &error_offset) catch |err| {
             log.err("could not create tree-sitter query: {}", .{err});
