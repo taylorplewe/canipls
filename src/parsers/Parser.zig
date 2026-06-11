@@ -90,7 +90,6 @@ pub fn processCode(
     process_mode: ProcessMode,
 ) []lsp.types.Diagnostic {
     _ = process_mode; // autofix
-    _ = injections; // autofix
     const parser = ts.Parser.create();
     defer parser.destroy();
     parser.setLanguage(lang) catch return &.{};
@@ -186,9 +185,34 @@ pub fn processCode(
                 }
             }
         }
-    }
 
-    // TODO: injections
+        for (injections) |injection_info| {
+            const inj_query = ts.Query.create(lang, injection_info.ts_query_text, &error_offset) catch |err| {
+                log.err("could not create tree-sitter query: {}", .{err});
+                return &.{};
+            };
+            defer inj_query.destroy();
+
+            // injection languages inside this language
+            cursor.exec(inj_query, root_node);
+            while (cursor.nextMatch()) |match| {
+                const injection_node = match.captures[0].node;
+                const injection_code = code[injection_node.startByte()..injection_node.endByte()];
+
+                const injection_diagnostics = injection_info.injectionParseFn(
+                    allocator,
+                    injection_code,
+                    injection_node.startPoint().column,
+                    injection_node.startPoint().row,
+                );
+
+                diagnostics.appendSlice(allocator, injection_diagnostics) catch |err| {
+                    log.err("could not add injection diagnostics to `diagnostics` ArrayList: {}", .{err});
+                    return diagnostics.items;
+                };
+            }
+        }
+    }
 
     return diagnostics.toOwnedSlice(allocator) catch &.{};
 }

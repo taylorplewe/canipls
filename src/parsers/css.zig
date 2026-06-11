@@ -188,8 +188,8 @@ fn parse(
         allocator,
         lang_css,
         code,
-        start_row,
         start_column,
+        start_row,
         trimComment,
         &.{
             .{ .ts_query_text = QUERY_AT_RULES, .perNodeCallback = AtRulesContext.callback },

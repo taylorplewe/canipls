@@ -103,15 +103,14 @@ pub fn parseHtmlAndReturnDiagnostics(
 
     const injections = [_]types.InjectionParseInfo{
         .{
-            .injection_parse_fn = js.JavascriptParser().parse,
+            .injectionParseFn = js.JavascriptParser().parse,
             .ts_query_text = QUERY_SCRIPT_BLOCKS,
         },
         .{
-            .injection_parse_fn = css.CssParser().parse,
+            .injectionParseFn = css.CssParser().parse,
             .ts_query_text = QUERY_STYLE_BLOCKS,
         },
     };
-    _ = injections; // autofix
 
     const Context = struct {
         var last_attr_name: ?[]const u8 = null;
@@ -163,42 +162,15 @@ pub fn parseHtmlAndReturnDiagnostics(
         allocator,
         lang,
         code,
-        start_row,
         start_column,
+        start_row,
         trimComment,
         &.{
             .{ .ts_query_text = QUERY_TAGS_AND_ATTRS, .perNodeCallback = Context.callback },
         },
-        &.{},
+        &injections,
         .Diagnostics,
     );
-
-    // for (injections) |injection_info| {
-    //     const inj_query = ts.Query.create(lang, injection_info.ts_query_text, &error_offset) catch |err| {
-    //         log.err("could not create tree-sitter query: {}", .{err});
-    //         return &.{};
-    //     };
-    //     defer inj_query.destroy();
-
-    //     // injection languages inside this language
-    //     cursor.exec(inj_query, root_node);
-    //     while (cursor.nextMatch()) |match| {
-    //         const injection_node = match.captures[0].node;
-    //         const injection_code = code[injection_node.startByte()..injection_node.endByte()];
-
-    //         const injection_diagnostics = injection_info.injection_parse_fn(
-    //             allocator,
-    //             injection_code,
-    //             injection_node.startPoint().column,
-    //             injection_node.startPoint().row,
-    //         );
-
-    //         diagnostics.appendSlice(allocator, injection_diagnostics) catch |err| {
-    //             log.err("could not add injection diagnostics to `diagnostics` ArrayList: {}", .{err});
-    //             return diagnostics.items;
-    //         };
-    //     }
-    // }
 }
 
 pub fn trimComment(in: []const u8) []const u8 {

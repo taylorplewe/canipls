@@ -182,8 +182,8 @@ fn parse(
         allocator,
         lang_javascript,
         code,
-        start_row,
         start_column,
+        start_row,
         trimComment,
         &.{
             .{ .ts_query_text = QUERY_IDENTIFIERS_AND_PROPERTIES, .perNodeCallback = JsIdentifiersContext.callback },
