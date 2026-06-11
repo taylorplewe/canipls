@@ -68,17 +68,10 @@ var sizeof_entry_per_bin_section = std.EnumArray(BinSection, usize).init(.{
 });
 var identifier_buf: [32]u8 = undefined;
 
-pub fn parseHtmlAndReturnDiagnostics(
-    allocator: std.mem.Allocator,
-    code: []const u8,
-    start_column: u32,
-    start_row: u32,
-    lang: *ts.Language,
-) []const lsp.types.Diagnostic {
-    const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
-    const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
-
-    const QUERY_TAGS_AND_ATTRS =
+pub const TagsAndAttrsContext = struct {
+    var last_attr_name: ?[]const u8 = null;
+    var tag_name: ?[]const u8 = null;
+    pub const QUERY_TAGS_AND_ATTRS =
         \\[
         \\  (start_tag
         \\    (tag_name) @tagname
@@ -101,6 +94,58 @@ pub fn parseHtmlAndReturnDiagnostics(
         \\]
     ;
 
+    pub fn callback(
+        node: *const ts.Node,
+        is_first_node: bool,
+        c: []const u8,
+        a: std.mem.Allocator,
+    ) std.mem.Allocator.Error![]const []const bins.BinSearchSymbolInfo {
+        const name = c[node.startByte()..node.endByte()];
+
+        if (is_first_node) {
+            tag_name = name;
+            return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
+                try a.dupe(bins.BinSearchSymbolInfo, &.{
+                    .{ .name = name, .node_kind = .HtmlTag },
+                }),
+            });
+        } else if (last_attr_name != null and std.mem.eql(u8, node.kind(), "attribute_value")) {
+            return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
+                try a.dupe(bins.BinSearchSymbolInfo, &.{
+                    .{ .name = last_attr_name.?, .node_kind = .HtmlAttribute },
+                    .{ .name = name, .node_kind = .HtmlStringLiteral },
+                }),
+                try a.dupe(bins.BinSearchSymbolInfo, &.{
+                    .{ .name = tag_name.?, .node_kind = .HtmlTag },
+                    .{ .name = last_attr_name.?, .node_kind = .HtmlAttribute },
+                    .{ .name = name, .node_kind = .HtmlStringLiteral },
+                }),
+            });
+        } else {
+            last_attr_name = name;
+            return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
+                try a.dupe(bins.BinSearchSymbolInfo, &.{
+                    .{ .name = name, .node_kind = .HtmlAttribute },
+                }),
+                try a.dupe(bins.BinSearchSymbolInfo, &.{
+                    .{ .name = tag_name.?, .node_kind = .HtmlTag },
+                    .{ .name = name, .node_kind = .HtmlAttribute },
+                }),
+            });
+        }
+    }
+};
+
+pub fn parseHtmlAndReturnDiagnostics(
+    allocator: std.mem.Allocator,
+    code: []const u8,
+    start_column: u32,
+    start_row: u32,
+    lang: *ts.Language,
+) []const lsp.types.Diagnostic {
+    const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
+    const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
+
     const injections = [_]types.InjectionParseInfo{
         .{
             .injectionParseFn = js.JavascriptParser().parse,
@@ -112,52 +157,6 @@ pub fn parseHtmlAndReturnDiagnostics(
         },
     };
 
-    const Context = struct {
-        var last_attr_name: ?[]const u8 = null;
-        var tag_name: ?[]const u8 = null;
-
-        pub fn callback(
-            node: *const ts.Node,
-            is_first_node: bool,
-            c: []const u8,
-            a: std.mem.Allocator,
-        ) std.mem.Allocator.Error![]const []const bins.BinSearchSymbolInfo {
-            const name = c[node.startByte()..node.endByte()];
-
-            if (is_first_node) {
-                tag_name = name;
-                return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
-                    try a.dupe(bins.BinSearchSymbolInfo, &.{
-                        .{ .name = name, .node_kind = .HtmlTag },
-                    }),
-                });
-            } else if (last_attr_name != null and std.mem.eql(u8, node.kind(), "attribute_value")) {
-                return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
-                    try a.dupe(bins.BinSearchSymbolInfo, &.{
-                        .{ .name = last_attr_name.?, .node_kind = .HtmlAttribute },
-                        .{ .name = name, .node_kind = .HtmlStringLiteral },
-                    }),
-                    try a.dupe(bins.BinSearchSymbolInfo, &.{
-                        .{ .name = tag_name.?, .node_kind = .HtmlTag },
-                        .{ .name = last_attr_name.?, .node_kind = .HtmlAttribute },
-                        .{ .name = name, .node_kind = .HtmlStringLiteral },
-                    }),
-                });
-            } else {
-                last_attr_name = name;
-                return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
-                    try a.dupe(bins.BinSearchSymbolInfo, &.{
-                        .{ .name = name, .node_kind = .HtmlAttribute },
-                    }),
-                    try a.dupe(bins.BinSearchSymbolInfo, &.{
-                        .{ .name = tag_name.?, .node_kind = .HtmlTag },
-                        .{ .name = name, .node_kind = .HtmlAttribute },
-                    }),
-                });
-            }
-        }
-    };
-
     return Parser.processCode(
         allocator,
         lang,
@@ -166,7 +165,7 @@ pub fn parseHtmlAndReturnDiagnostics(
         start_row,
         trimComment,
         &.{
-            .{ .ts_query_text = QUERY_TAGS_AND_ATTRS, .perNodeCallback = Context.callback },
+            .{ .ts_query_text = TagsAndAttrsContext.QUERY_TAGS_AND_ATTRS, .perNodeCallback = TagsAndAttrsContext.callback },
         },
         &injections,
         .Diagnostics,

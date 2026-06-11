@@ -36,55 +36,38 @@ fn parse(
     start_column: u32,
     start_row: u32,
 ) []const lsp.types.Diagnostic {
-    _ = allocator; // autofix
-    _ = code; // autofix
-    _ = start_column; // autofix
-    _ = start_row; // autofix
-    // const QUERY_TAGS = "(start_tag (tag_name) @tagname)";
-    // const QUERY_ATTRS = "(attribute_name) @attrname";
-    // const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
-    // const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
-    // const QUERY_FRONTMATTER_JS = "(frontmatter (frontmatter_js_block) @js)";
+    const QUERY_FRONTMATTER_JS = "(frontmatter (frontmatter_js_block) @js)";
+    const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
+    const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
 
-    // const symbols = [_]types.SymbolInfo{
-    //     .{
-    //         .element_kind = .HtmlAttribute,
-    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.HtmlAttribute),
-    //         .ts_query_text = QUERY_ATTRS,
-    //     },
-    //     .{
-    //         .element_kind = .HtmlElement,
-    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.HtmlTag),
-    //         .ts_query_text = QUERY_TAGS,
-    //     },
-    // };
+    const injections = [_]types.InjectionParseInfo{
+        .{
+            .injectionParseFn = js.JavascriptParser().parse,
+            .ts_query_text = QUERY_SCRIPT_BLOCKS,
+        },
+        .{
+            .injectionParseFn = js.JavascriptParser().parse,
+            .ts_query_text = QUERY_FRONTMATTER_JS,
+        },
+        .{
+            .injectionParseFn = css.CssParser().parse,
+            .ts_query_text = QUERY_STYLE_BLOCKS,
+        },
+    };
 
-    // const injections = [_]types.InjectionParseInfo{
-    //     .{
-    //         .injection_parse_fn = js.JavascriptParser().parse,
-    //         .ts_query_text = QUERY_FRONTMATTER_JS,
-    //     },
-    //     .{
-    //         .injection_parse_fn = js.JavascriptParser().parse,
-    //         .ts_query_text = QUERY_SCRIPT_BLOCKS,
-    //     },
-    //     .{
-    //         .injection_parse_fn = css.CssParser().parse,
-    //         .ts_query_text = QUERY_STYLE_BLOCKS,
-    //     },
-    // };
-
-    // return Parser.getDiagnosticsFromCode(
-    //     allocator,
-    //     lang_astro,
-    //     code,
-    //     start_column,
-    //     start_row,
-    //     html.trimComment,
-    //     &symbols,
-    //     &injections,
-    // );
-    return &.{};
+    return Parser.processCode(
+        allocator,
+        lang_astro,
+        code,
+        start_column,
+        start_row,
+        html.trimComment,
+        &.{
+            .{ .ts_query_text = html.TagsAndAttrsContext.QUERY_TAGS_AND_ATTRS, .perNodeCallback = html.TagsAndAttrsContext.callback },
+        },
+        &injections,
+        .Diagnostics,
+    );
 }
 
 fn getHoverInfoAtPosition(
