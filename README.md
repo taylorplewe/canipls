@@ -1,4 +1,6 @@
 # canipls
+[![Tests CI results](https://github.com/taylorplewe/canipls/actions/workflows/tests.yml/badge.svg)](https://github.com/taylorplewe/canipls/actions/workflows/tests.yml)
+
 (Pronounced "can I please", á la [gopls](https://go.dev/gopls/))
 
 A language server that shows [caniuse.com](https://caniuse.com) support percentages for web features, right in your editor.
