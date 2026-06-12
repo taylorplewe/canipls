@@ -147,6 +147,9 @@ pub const TagsAndAttrsContext = struct {
     }
 };
 
+const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
+const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
+
 pub fn parseHtmlAndReturnDiagnostics(
     allocator: std.mem.Allocator,
     code: []const u8,
@@ -154,9 +157,6 @@ pub fn parseHtmlAndReturnDiagnostics(
     start_row: u32,
     lang: *ts.Language,
 ) []const lsp.types.Diagnostic {
-    const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
-    const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
-
     const injections = [_]types.InjectionParseInfo{
         .{
             .injectionParseFn = js.JavascriptParser().parse,
@@ -207,9 +207,6 @@ pub fn getHoverInfoFromHtmlAtPosition(
     row: u32,
     lang: *ts.Language,
 ) ?HoverInfo {
-    const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
-    const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
-
     const injections = [_]types.InjectionHoverInfo{
         .{
             .injectionHoverFn = js.JavascriptParser().getHoverInfoAtPosition,
@@ -234,19 +231,12 @@ pub fn getHoverInfoFromHtmlAtPosition(
             },
         },
         &injections,
-    ) catch null;
-
-    // return Parser.getHoverDocFromCodeAtPosition(
-    //     lang,
-    //     code,
-    //     column,
-    //     row,
-    //     &symbols,
-    //     &injections,
-    // );
+    ) catch |err| {
+        log.err("encountered error retrieving hover doc: {}", .{err});
+        return null;
+    };
 }
 
-/// TODO: most of this code is copy-pasted from the parse function (same goes for other parsers), abstract the code out somehow
 fn getHoverInfoAtPosition(
     temp_allocator: std.mem.Allocator,
     code: []const u8,

@@ -30,6 +30,10 @@ fn init() void {
 fn deinit() void {
     lang_astro.destroy();
 }
+
+pub const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
+pub const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
+
 fn parse(
     allocator: std.mem.Allocator,
     code: []const u8,
@@ -37,8 +41,6 @@ fn parse(
     start_row: u32,
 ) []const lsp.types.Diagnostic {
     const QUERY_FRONTMATTER_JS = "(frontmatter (frontmatter_js_block) @js)";
-    const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
-    const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
 
     const injections = [_]types.InjectionParseInfo{
         .{
@@ -81,51 +83,38 @@ fn getHoverInfoAtPosition(
     column: u32,
     row: u32,
 ) ?HoverInfo {
-    _ = temp_allocator; // autofix
-    _ = code; // autofix
-    _ = column; // autofix
-    _ = row; // autofix
-    // const QUERY_TAGS = "(start_tag (tag_name) @tagname)";
-    // const QUERY_ATTRS = "(attribute_name) @attrname";
-    // const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
-    // const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
-    // const QUERY_FRONTMATTER_JS = "(frontmatter (frontmatter_js_block) @js)";
+    const QUERY_FRONTMATTER_JS = "(frontmatter (frontmatter_js_block) @js)";
 
-    // const symbols = [_]types.SymbolInfo{
-    //     .{
-    //         .element_kind = .HtmlAttribute,
-    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.HtmlAttribute),
-    //         .ts_query_text = QUERY_ATTRS,
-    //     },
-    //     .{
-    //         .element_kind = .HtmlElement,
-    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.HtmlTag),
-    //         .ts_query_text = QUERY_TAGS,
-    //     },
-    // };
+    const injections = [_]types.InjectionHoverInfo{
+        .{
+            .injectionHoverFn = js.JavascriptParser().getHoverInfoAtPosition,
+            .ts_query_text = QUERY_SCRIPT_BLOCKS,
+        },
+        .{
+            .injectionHoverFn = js.JavascriptParser().getHoverInfoAtPosition,
+            .ts_query_text = QUERY_FRONTMATTER_JS,
+        },
+        .{
+            .injectionHoverFn = css.CssParser().getHoverInfoAtPosition,
+            .ts_query_text = QUERY_STYLE_BLOCKS,
+        },
+    };
 
-    // const injections = [_]types.InjectionHoverInfo{
-    //     .{
-    //         .injection_hover_fn = js.JavascriptParser().getHoverInfoAtPosition,
-    //         .ts_query_text = QUERY_FRONTMATTER_JS,
-    //     },
-    //     .{
-    //         .injection_hover_fn = js.JavascriptParser().getHoverInfoAtPosition,
-    //         .ts_query_text = QUERY_SCRIPT_BLOCKS,
-    //     },
-    //     .{
-    //         .injection_hover_fn = css.CssParser().getHoverInfoAtPosition,
-    //         .ts_query_text = QUERY_STYLE_BLOCKS,
-    //     },
-    // };
-
-    // return Parser.getHoverDocFromCodeAtPosition(
-    //     lang_astro,
-    //     code,
-    //     column,
-    //     row,
-    //     &symbols,
-    //     &injections,
-    // );
-    return null;
+    return Parser.getHoverInfoFromCodeAtPosition(
+        temp_allocator,
+        lang_astro,
+        code,
+        column,
+        row,
+        &.{
+            .{
+                .ts_query_text = html.TagsAndAttrsContext.QUERY_TAGS_AND_ATTRS_HOVER,
+                .perNodeCallback = html.TagsAndAttrsContext.callback,
+            },
+        },
+        &injections,
+    ) catch |err| {
+        log.err("encountered error retrieving hover doc: {}", .{err});
+        return null;
+    };
 }

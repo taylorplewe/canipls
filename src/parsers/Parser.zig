@@ -210,10 +210,6 @@ pub fn getHoverInfoFromCodeAtPosition(
     defer parser.destroy();
     try parser.setLanguage(lang);
 
-    // TODO: closing elements as well
-    // TODO: do hover for JS and CSS
-    // TODO: don't short-circuit on parent nodes--hovering over HTML attributes & attrvals returns hover doc for parent tag :(
-
     const parse_res = parser.parseString(code, null);
     if (parse_res) |ast| {
         defer ast.destroy();
