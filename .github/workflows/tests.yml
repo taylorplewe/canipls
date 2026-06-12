@@ -1,0 +1,21 @@
+name: Tests
+
+run-name: Tests
+
+on:
+    push:
+        branches:
+            - "main"
+        paths:
+            - "**.zig"
+
+jobs:
+    build-and-test:
+        name: Test on ubuntu-latest
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: mlugg/setup-zig@v2
+              with:
+                  version: 0.16.0
+            - run: zig build test --summary all # main exe module; `refAllDecls` will reach all tests downstream of there

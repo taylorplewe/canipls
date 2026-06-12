@@ -48,4 +48,12 @@ pub fn build(b: *std.Build) void {
         .root_module = exe_mod,
     });
     b.installArtifact(exe);
+
+    // testing
+    const test_exe = b.addTest(.{
+        .root_module = exe_mod,
+    });
+    const run_test = b.addRunArtifact(test_exe);
+    const test_step = b.step("test", "Run unit tests");
+    test_step.dependOn(&run_test.step);
 }

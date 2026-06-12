@@ -45,3 +45,7 @@ pub fn main(init: std.process.Init) !void {
         log.err,
     );
 }
+
+test {
+    std.testing.refAllDecls(@This());
+}
