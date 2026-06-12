@@ -157,7 +157,7 @@ pub fn parseHtmlAndReturnDiagnostics(
         },
     };
 
-    return Parser.processCode(
+    return Parser.getDiagnosticsFromCode(
         allocator,
         lang,
         code,
@@ -171,8 +171,10 @@ pub fn parseHtmlAndReturnDiagnostics(
             },
         },
         &injections,
-        .Diagnostics,
-    );
+    ) catch |err| {
+        log.err("could not get diagnostics for HTML code: {}", .{err});
+        return &.{};
+    };
 }
 
 pub fn trimComment(in: []const u8) []const u8 {
@@ -188,43 +190,40 @@ pub fn trimComment(in: []const u8) []const u8 {
 }
 
 pub fn getHoverInfoFromHtmlAtPosition(
+    temp_allocator: std.mem.Allocator,
     code: []const u8,
     column: u32,
     row: u32,
     lang: *ts.Language,
 ) ?HoverInfo {
-    _ = code; // autofix
-    _ = column; // autofix
-    _ = row; // autofix
-    _ = lang; // autofix
-    // const QUERY_TAGS = "(tag_name) @tagname";
-    // const QUERY_ATTRS = "(attribute_name) @attrname";
-    // const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
-    // const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
+    const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
+    const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
 
-    // const symbols = [_]types.SymbolInfo{
-    //     .{
-    //         .element_kind = .HtmlAttribute,
-    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.HtmlAttribute),
-    //         .ts_query_text = QUERY_ATTRS,
-    //     },
-    //     .{
-    //         .element_kind = .HtmlElement,
-    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.HtmlTag),
-    //         .ts_query_text = QUERY_TAGS,
-    //     },
-    // };
+    const injections = [_]types.InjectionHoverInfo{
+        .{
+            .injectionHoverFn = js.JavascriptParser().getHoverInfoAtPosition,
+            .ts_query_text = QUERY_SCRIPT_BLOCKS,
+        },
+        .{
+            .injectionHoverFn = css.CssParser().getHoverInfoAtPosition,
+            .ts_query_text = QUERY_STYLE_BLOCKS,
+        },
+    };
 
-    // const injections = [_]types.InjectionHoverInfo{
-    //     .{
-    //         .injection_hover_fn = js.JavascriptParser().getHoverInfoAtPosition,
-    //         .ts_query_text = QUERY_SCRIPT_BLOCKS,
-    //     },
-    //     .{
-    //         .injection_hover_fn = css.CssParser().getHoverInfoAtPosition,
-    //         .ts_query_text = QUERY_STYLE_BLOCKS,
-    //     },
-    // };
+    return Parser.getHoverInfoFromCodeAtPosition(
+        temp_allocator,
+        lang,
+        code,
+        column,
+        row,
+        &.{
+            .{
+                .ts_query_text = TagsAndAttrsContext.QUERY_TAGS_AND_ATTRS,
+                .perNodeCallback = TagsAndAttrsContext.callback,
+            },
+        },
+        &injections,
+    ) catch null;
 
     // return Parser.getHoverDocFromCodeAtPosition(
     //     lang,
@@ -234,16 +233,17 @@ pub fn getHoverInfoFromHtmlAtPosition(
     //     &symbols,
     //     &injections,
     // );
-    return null;
 }
 
 /// TODO: most of this code is copy-pasted from the parse function (same goes for other parsers), abstract the code out somehow
 fn getHoverInfoAtPosition(
+    temp_allocator: std.mem.Allocator,
     code: []const u8,
     column: u32,
     row: u32,
 ) ?HoverInfo {
     return getHoverInfoFromHtmlAtPosition(
+        temp_allocator,
         code,
         column,
         row,

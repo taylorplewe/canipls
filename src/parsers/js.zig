@@ -178,7 +178,7 @@ fn parse(
         }
     };
 
-    return Parser.processCode(
+    return Parser.getDiagnosticsFromCode(
         allocator,
         lang_javascript,
         code,
@@ -196,15 +196,19 @@ fn parse(
             },
         },
         &.{},
-        .Diagnostics,
-    );
+    ) catch |err| {
+        log.err("could not get diagnostics for JavaScript code: {}", .{err});
+        return &.{};
+    };
 }
 
 fn getHoverInfoAtPosition(
+    temp_allocator: std.mem.Allocator,
     code: []const u8,
     column: u32,
     row: u32,
 ) ?HoverInfo {
+    _ = temp_allocator; // autofix
     _ = code; // autofix
     _ = column; // autofix
     _ = row; // autofix

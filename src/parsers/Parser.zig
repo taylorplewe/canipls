@@ -22,6 +22,7 @@ parse: *const fn (
     start_row: u32,
 ) []const lsp.types.Diagnostic,
 getHoverInfoAtPosition: *const fn (
+    temp_allocator: std.mem.Allocator,
     code: []const u8,
     column: u32,
     row: u32,
@@ -61,20 +62,7 @@ fn getDiagnosticPhraseFromElement(allocator: std.mem.Allocator, node_kind: types
     };
 }
 
-pub const ProcessMode = enum {
-    Diagnostics,
-    Hover,
-};
-pub const ProcessResult = union(ProcessMode) {
-    Diagnostics: []const lsp.types.Diagnostic,
-    Hover: types.HoverInfo,
-};
-/// The actual meat of processing a piece of code, searching for features' browser support percentages based on syntax.
-///
-/// Can provide results for any one of the following use cases:
-/// - getting a list of LSP diagnostics
-/// - getting LSP hover documentation for a certain symbol
-pub fn processCode(
+pub fn getDiagnosticsFromCode(
     /// This should be the temporary allocator provided by the LSP handler function; the allocated memory is *NOT* freed in this code.
     allocator: std.mem.Allocator,
     lang: *ts.Language,
@@ -87,12 +75,10 @@ pub fn processCode(
     trimComment: *const fn (in: []const u8) []const u8,
     queries: []const types.QueryInfo,
     injections: []const types.InjectionParseInfo,
-    process_mode: ProcessMode,
-) []lsp.types.Diagnostic {
-    _ = process_mode; // autofix
+) ![]lsp.types.Diagnostic {
     const parser = ts.Parser.create();
     defer parser.destroy();
-    parser.setLanguage(lang) catch return &.{};
+    try parser.setLanguage(lang);
 
     var diagnostics: std.ArrayList(lsp.types.Diagnostic) = .empty;
 
@@ -116,10 +102,7 @@ pub fn processCode(
         defer cursor.destroy();
 
         for (queries) |query_info| {
-            const query = ts.Query.create(lang, query_info.ts_query_text, &error_offset) catch |err| {
-                log.err("could not create tree-sitter query: {}", .{err});
-                return diagnostics.items;
-            };
+            const query = try ts.Query.create(lang, query_info.ts_query_text, &error_offset);
             defer query.destroy();
 
             cursor.exec(query, root_node);
@@ -187,10 +170,7 @@ pub fn processCode(
         }
 
         for (injections) |injection_info| {
-            const inj_query = ts.Query.create(lang, injection_info.ts_query_text, &error_offset) catch |err| {
-                log.err("could not create tree-sitter query: {}", .{err});
-                return &.{};
-            };
+            const inj_query = try ts.Query.create(lang, injection_info.ts_query_text, &error_offset);
             defer inj_query.destroy();
 
             // injection languages inside this language
@@ -206,80 +186,91 @@ pub fn processCode(
                     injection_node.startPoint().row,
                 );
 
-                diagnostics.appendSlice(allocator, injection_diagnostics) catch |err| {
-                    log.err("could not add injection diagnostics to `diagnostics` ArrayList: {}", .{err});
-                    return diagnostics.items;
-                };
+                try diagnostics.appendSlice(allocator, injection_diagnostics);
             }
         }
     }
 
-    return diagnostics.toOwnedSlice(allocator) catch &.{};
+    return try diagnostics.toOwnedSlice(allocator);
 }
 
-pub fn getHoverDocFromCodeAtPosition(
+pub fn getHoverInfoFromCodeAtPosition(
+    /// This should be the temporary allocator provided by the LSP handler function; the allocated memory is *NOT* freed in this code.
+    allocator: std.mem.Allocator,
     lang: *ts.Language,
     code: []const u8,
+    /// Used for injection languages (e.g. JavaScript inside of an HTML `<script>` element)
     column: u32,
+    /// Used for injection languages (e.g. JavaScript inside of an HTML `<script>` element)
     row: u32,
-    symbols: []const types.SymbolInfo,
+    queries: []const types.QueryInfo,
     injections: []const types.InjectionHoverInfo,
-) ?types.HoverInfo {
+) !?types.HoverInfo {
     const parser = ts.Parser.create();
     defer parser.destroy();
-    parser.setLanguage(lang) catch return null;
+    try parser.setLanguage(lang);
 
     const parse_res = parser.parseString(code, null);
     if (parse_res) |ast| {
         defer ast.destroy();
-
         const root_node = ast.rootNode();
 
         var error_offset: u32 = 0;
-
         const cursor = ts.QueryCursor.create();
         defer cursor.destroy();
 
-        cursor.setPointRange(
+        try cursor.setPointRange(
             .{ .column = column, .row = row },
             .{ .column = column, .row = row },
-        ) catch return null;
+        );
 
-        for (symbols) |symbol_info| {
-            const query = ts.Query.create(lang, symbol_info.ts_query_text, &error_offset) catch |err| {
-                log.err("could not create tree-sitter query: {}", .{err});
-                return null;
-            };
+        for (queries) |query_info| {
+            const query = try ts.Query.create(lang, query_info.ts_query_text, &error_offset);
             defer query.destroy();
 
             cursor.exec(query, root_node);
             while (cursor.nextMatch()) |match| {
-                const node = match.captures[0].node;
-                const name = code[node.startByte()..node.endByte()][symbol_info.name_trim_start..];
+                capture_loop: for (match.captures, 0..) |capture, capture_index| {
+                    const node = capture.node;
 
-                // look up this symbol in the appropriate support bin file
-                // const maybe_feature_info = bins.getSupportPercentageAndCiuIdForIdentifierFromBin(name, symbol_info.support_bin);
-                const maybe_feature_info: ?struct { f32, []const u8 } = null;
-                if (maybe_feature_info) |feature_info| {
-                    const percentage, const ciu_id = feature_info;
-                    return types.HoverInfo{
-                        .caniuse_id = ciu_id,
-                        .identifier = name,
-                        .support_percentage = percentage,
+                    // each syntax type looks for symbols differently; this is done through callbacks provided to this function
+                    const symbol_stacks = query_info.perNodeCallback(
+                        &node,
+                        capture_index == 0,
+                        code,
+                        allocator,
+                    ) catch |err| {
+                        log.err("could not get symbol stack: {}", .{err});
+                        continue :capture_loop;
                     };
+                    defer {
+                        for (symbol_stacks) |stack| {
+                            allocator.free(stack);
+                        }
+                        allocator.free(symbol_stacks);
+                    }
+
+                    // take the symbol stacks and search the bin files for support info
+                    for (symbol_stacks) |symbol_stack| {
+                        const maybe_feature_info = bins.getSymbolSupportInfoFromBin(symbol_stack);
+                        if (maybe_feature_info) |feature_info| {
+                            return types.HoverInfo{
+                                .caniuse_id = feature_info.ciu_id,
+                                .identifier = symbol_stack[symbol_stack.len - 1].name,
+                                .support_percentage = feature_info.support,
+                            };
+                        }
+                    }
                 }
             }
         }
 
         for (injections) |injection_info| {
-            const query = ts.Query.create(lang, injection_info.ts_query_text, &error_offset) catch |err| {
-                log.err("could not create tree-sitter query: {}", .{err});
-                return null;
-            };
-            defer query.destroy();
+            const inj_query = try ts.Query.create(lang, injection_info.ts_query_text, &error_offset);
+            defer inj_query.destroy();
 
             // injection languages inside this language
-            cursor.exec(query, root_node);
+            cursor.exec(inj_query, root_node);
             while (cursor.nextMatch()) |match| {
                 const injection_node = match.captures[0].node;
                 const injection_code = code[injection_node.startByte()..injection_node.endByte()];
@@ -289,7 +280,8 @@ pub fn getHoverDocFromCodeAtPosition(
                     continue;
                 const injection_column = if (injection_row == 0) column - injection_node.startPoint().column else column;
 
-                return injection_info.injection_hover_fn(
+                return injection_info.injectionHoverFn(
+                    allocator,
                     injection_code,
                     injection_column,
                     injection_row,
@@ -297,8 +289,92 @@ pub fn getHoverDocFromCodeAtPosition(
             }
         }
     }
-    return null;
+
+    return null; // symbol not found
 }
+
+// pub fn getHoverDocFromCodeAtPosition(
+//     lang: *ts.Language,
+//     code: []const u8,
+//     column: u32,
+//     row: u32,
+//     symbols: []const types.SymbolInfo,
+//     injections: []const types.InjectionHoverInfo,
+// ) ?types.HoverInfo {
+//     const parser = ts.Parser.create();
+//     defer parser.destroy();
+//     parser.setLanguage(lang) catch return null;
+
+//     const parse_res = parser.parseString(code, null);
+//     if (parse_res) |ast| {
+//         defer ast.destroy();
+
+//         const root_node = ast.rootNode();
+
+//         var error_offset: u32 = 0;
+
+//         const cursor = ts.QueryCursor.create();
+//         defer cursor.destroy();
+
+//         cursor.setPointRange(
+//             .{ .column = column, .row = row },
+//             .{ .column = column, .row = row },
+//         ) catch return null;
+
+//         for (symbols) |symbol_info| {
+//             const query = ts.Query.create(lang, symbol_info.ts_query_text, &error_offset) catch |err| {
+//                 log.err("could not create tree-sitter query: {}", .{err});
+//                 return null;
+//             };
+//             defer query.destroy();
+
+//             cursor.exec(query, root_node);
+//             while (cursor.nextMatch()) |match| {
+//                 const node = match.captures[0].node;
+//                 const name = code[node.startByte()..node.endByte()][symbol_info.name_trim_start..];
+
+//                 // look up this symbol in the appropriate support bin file
+//                 // const maybe_feature_info = bins.getSupportPercentageAndCiuIdForIdentifierFromBin(name, symbol_info.support_bin);
+//                 const maybe_feature_info: ?struct { f32, []const u8 } = null;
+//                 if (maybe_feature_info) |feature_info| {
+//                     const percentage, const ciu_id = feature_info;
+//                     return types.HoverInfo{
+//                         .caniuse_id = ciu_id,
+//                         .identifier = name,
+//                         .support_percentage = percentage,
+//                     };
+//                 }
+//             }
+//         }
+
+//         for (injections) |injection_info| {
+//             const query = ts.Query.create(lang, injection_info.ts_query_text, &error_offset) catch |err| {
+//                 log.err("could not create tree-sitter query: {}", .{err});
+//                 return null;
+//             };
+//             defer query.destroy();
+
+//             // injection languages inside this language
+//             cursor.exec(query, root_node);
+//             while (cursor.nextMatch()) |match| {
+//                 const injection_node = match.captures[0].node;
+//                 const injection_code = code[injection_node.startByte()..injection_node.endByte()];
+
+//                 const injection_row = row - injection_node.startPoint().row;
+//                 if (injection_row == 0 and column < injection_node.startPoint().column)
+//                     continue;
+//                 const injection_column = if (injection_row == 0) column - injection_node.startPoint().column else column;
+
+//                 return injection_info.injection_hover_fn(
+//                     injection_code,
+//                     injection_column,
+//                     injection_row,
+//                 );
+//             }
+//         }
+//     }
+//     return null;
+// }
 
 const QUERY_COMMENT = "(comment) @comment"; // this is the same for all 3 TS parsers; HTML, CSS and JS.
 /// Get a list of canipls-ignore ranges in a piece of code

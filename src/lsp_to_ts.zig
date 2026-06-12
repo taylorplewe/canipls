@@ -80,7 +80,12 @@ pub fn getHoverDocAtPosition(
 ) ?lsp.types.Hover {
     const parser = getParserFromLspLanguageKind(document.language) orelse return null;
 
-    const hover_info = parser.getHoverInfoAtPosition(document.src, position.character, position.line);
+    const hover_info = parser.getHoverInfoAtPosition(
+        temp_allocator,
+        document.src,
+        position.character,
+        position.line,
+    );
     if (hover_info) |info| {
         const hover_content = std.fmt.allocPrint(
             temp_allocator,
