@@ -103,7 +103,7 @@ const JsIdentifiersContext = struct {
 };
 const JsxContext = struct {
     // see the HTML query in `html.zig`
-    const QUERY =
+    const QUERY_DIAGNOSTICS =
         \\[
         \\  (jsx_opening_element
         \\    name: (identifier) @tagname
@@ -125,6 +125,47 @@ const JsxContext = struct {
         \\  )
         \\]
     ;
+    const QUERY_HOVER =
+        \\  (jsx_opening_element
+        \\    name: (identifier) @tagname
+        \\    (jsx_attribute
+        \\      (property_identifier) @attrname
+        \\      (string
+        \\        (string_fragment) @attrval
+        \\      )?
+        \\    )*
+        \\  )
+        \\  (jsx_closing_element
+        \\    name: (identifier) @tagname
+        \\    (jsx_attribute
+        \\      (property_identifier) @attrname
+        \\      (string
+        \\        (string_fragment) @attrval
+        \\      )?
+        \\    )*
+        \\  )
+        \\  (jsx_self_closing_element
+        \\    name: (identifier) @tagname
+        \\    (jsx_attribute
+        \\      (property_identifier) @attrname
+        \\      (string
+        \\        (string_fragment) @attrval
+        \\      )?
+        \\    )*
+        \\  )
+    ;
+
+    // pub const QUERY_HOVER =
+    //     \\(
+    //     \\  (tag_name) @tagname
+    //     \\  (attribute
+    //     \\    (attribute_name) @attrname
+    //     \\    (quoted_attribute_value
+    //     \\      (attribute_value) @attrval
+    //     \\    )?
+    //     \\  )*
+    //     \\)
+    // ;
 
     var last_attr_name: ?[]const u8 = null;
     var tag_name: ?[]const u8 = null;
@@ -192,7 +233,7 @@ fn parse(
                 .perNodeCallback = JsIdentifiersContext.callback,
             },
             .{
-                .ts_query_text = JsxContext.QUERY,
+                .ts_query_text = JsxContext.QUERY_DIAGNOSTICS,
                 .perNodeCallback = JsxContext.callback,
             },
         },
@@ -221,7 +262,7 @@ fn getHoverInfoAtPosition(
                 .perNodeCallback = JsIdentifiersContext.callback,
             },
             .{
-                .ts_query_text = JsxContext.QUERY,
+                .ts_query_text = JsxContext.QUERY_HOVER,
                 .perNodeCallback = JsxContext.callback,
             },
         },

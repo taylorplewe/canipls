@@ -66,7 +66,7 @@ fn parse(
         html.trimComment,
         &.{
             .{
-                .ts_query_text = html.TagsAndAttrsContext.QUERY_TAGS_AND_ATTRS_DIAGNOSTICS,
+                .ts_query_text = html.TagsAndAttrsContext.QUERY_DIAGNOSTICS,
                 .perNodeCallback = html.TagsAndAttrsContext.callback,
             },
         },
@@ -108,7 +108,7 @@ fn getHoverInfoAtPosition(
         row,
         &.{
             .{
-                .ts_query_text = html.TagsAndAttrsContext.QUERY_TAGS_AND_ATTRS_HOVER,
+                .ts_query_text = html.TagsAndAttrsContext.QUERY_HOVER,
                 .perNodeCallback = html.TagsAndAttrsContext.callback,
             },
         },
