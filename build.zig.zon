@@ -1,6 +1,6 @@
 .{
     .name = .canipls,
-    .version = "0.0.0",
+    .version = "0.0.5",
     .fingerprint = 0xd003482123f2a210, // Changing this has security and trust implications.
     .minimum_zig_version = "0.16.0",
     .dependencies = .{

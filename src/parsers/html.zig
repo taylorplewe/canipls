@@ -2,6 +2,8 @@ const std = @import("std");
 const lsp = @import("lsp");
 const ts = @import("tree-sitter");
 
+const utils = @import("../utils.zig");
+const config = @import("../config.zig");
 const types = @import("../types.zig");
 const HoverInfo = types.HoverInfo;
 const IgnoredSpan = types.IgnoredSpan;
@@ -45,6 +47,88 @@ fn parse(
     );
 }
 
+pub const TagsAndAttrsContext = struct {
+    var last_attr_name: ?[]const u8 = null;
+    var tag_name: ?[]const u8 = null;
+    pub const QUERY_DIAGNOSTICS =
+        \\[
+        \\  (start_tag
+        \\    (tag_name) @tagname
+        \\    (attribute
+        \\      (attribute_name) @attrname
+        \\      (quoted_attribute_value
+        \\        (attribute_value) @attrval
+        \\      )?
+        \\    )*
+        \\  )
+        \\  (self_closing_tag
+        \\    (tag_name) @tagname
+        \\    (attribute
+        \\      (attribute_name) @attrname
+        \\      (quoted_attribute_value
+        \\        (attribute_value) @attrval
+        \\      )?
+        \\    )*
+        \\  )
+        \\]
+    ;
+    pub const QUERY_HOVER =
+        \\(
+        \\  (tag_name) @tagname
+        \\  (attribute
+        \\    (attribute_name) @attrname
+        \\    (quoted_attribute_value
+        \\      (attribute_value) @attrval
+        \\    )?
+        \\  )*
+        \\)
+    ;
+
+    pub fn callback(
+        node: *const ts.Node,
+        is_first_node: bool,
+        c: []const u8,
+        a: std.mem.Allocator,
+    ) std.mem.Allocator.Error![]const []const bins.BinSearchSymbolInfo {
+        const name = c[node.startByte()..node.endByte()];
+
+        if (is_first_node) {
+            tag_name = name;
+            return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
+                try a.dupe(bins.BinSearchSymbolInfo, &.{
+                    .{ .name = name, .node_kind = .HtmlTag },
+                }),
+            });
+        } else if (last_attr_name != null and std.mem.eql(u8, node.kind(), "attribute_value")) {
+            return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
+                try a.dupe(bins.BinSearchSymbolInfo, &.{
+                    .{ .name = last_attr_name.?, .node_kind = .HtmlAttribute },
+                    .{ .name = name, .node_kind = .HtmlStringLiteral },
+                }),
+                try a.dupe(bins.BinSearchSymbolInfo, &.{
+                    .{ .name = tag_name.?, .node_kind = .HtmlTag },
+                    .{ .name = last_attr_name.?, .node_kind = .HtmlAttribute },
+                    .{ .name = name, .node_kind = .HtmlStringLiteral },
+                }),
+            });
+        } else {
+            last_attr_name = name;
+            return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
+                try a.dupe(bins.BinSearchSymbolInfo, &.{
+                    .{ .name = name, .node_kind = .HtmlAttribute },
+                }),
+                try a.dupe(bins.BinSearchSymbolInfo, &.{
+                    .{ .name = tag_name.?, .node_kind = .HtmlTag },
+                    .{ .name = name, .node_kind = .HtmlAttribute },
+                }),
+            });
+        }
+    }
+};
+
+const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
+const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
+
 pub fn parseHtmlAndReturnDiagnostics(
     allocator: std.mem.Allocator,
     code: []const u8,
@@ -52,31 +136,13 @@ pub fn parseHtmlAndReturnDiagnostics(
     start_row: u32,
     lang: *ts.Language,
 ) []const lsp.types.Diagnostic {
-    const QUERY_TAGS = "(start_tag (tag_name) @tagname)";
-    const QUERY_ATTRS = "(attribute_name) @attrname";
-    const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
-    const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
-
-    const symbols = [_]types.SymbolInfo{
-        .{
-            .element_kind = .HtmlAttribute,
-            .support_bin = bins.bin_map.get(.HtmlAttributes).?,
-            .ts_query_text = QUERY_ATTRS,
-        },
-        .{
-            .element_kind = .HtmlElement,
-            .support_bin = bins.bin_map.get(.HtmlTags).?,
-            .ts_query_text = QUERY_TAGS,
-        },
-    };
-
     const injections = [_]types.InjectionParseInfo{
         .{
-            .injection_parse_fn = js.JavascriptParser().parse,
+            .injectionParseFn = js.JavascriptParser().parse,
             .ts_query_text = QUERY_SCRIPT_BLOCKS,
         },
         .{
-            .injection_parse_fn = css.CssParser().parse,
+            .injectionParseFn = css.CssParser().parse,
             .ts_query_text = QUERY_STYLE_BLOCKS,
         },
     };
@@ -88,9 +154,17 @@ pub fn parseHtmlAndReturnDiagnostics(
         start_column,
         start_row,
         trimComment,
-        &symbols,
+        &.{
+            .{
+                .ts_query_text = TagsAndAttrsContext.QUERY_DIAGNOSTICS,
+                .perNodeCallback = TagsAndAttrsContext.callback,
+            },
+        },
         &injections,
-    );
+    ) catch |err| {
+        log.err("could not get diagnostics for HTML code: {}", .{err});
+        return &.{};
+    };
 }
 
 pub fn trimComment(in: []const u8) []const u8 {
@@ -106,57 +180,50 @@ pub fn trimComment(in: []const u8) []const u8 {
 }
 
 pub fn getHoverInfoFromHtmlAtPosition(
+    temp_allocator: std.mem.Allocator,
     code: []const u8,
     column: u32,
     row: u32,
     lang: *ts.Language,
 ) ?HoverInfo {
-    const QUERY_TAGS = "(tag_name) @tagname";
-    const QUERY_ATTRS = "(attribute_name) @attrname";
-    const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
-    const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
-
-    const symbols = [_]types.SymbolInfo{
-        .{
-            .element_kind = .HtmlAttribute,
-            .support_bin = bins.bin_map.get(.HtmlAttributes).?,
-            .ts_query_text = QUERY_ATTRS,
-        },
-        .{
-            .element_kind = .HtmlElement,
-            .support_bin = bins.bin_map.get(.HtmlTags).?,
-            .ts_query_text = QUERY_TAGS,
-        },
-    };
-
     const injections = [_]types.InjectionHoverInfo{
         .{
-            .injection_hover_fn = js.JavascriptParser().getHoverInfoAtPosition,
+            .injectionHoverFn = js.JavascriptParser().getHoverInfoAtPosition,
             .ts_query_text = QUERY_SCRIPT_BLOCKS,
         },
         .{
-            .injection_hover_fn = css.CssParser().getHoverInfoAtPosition,
+            .injectionHoverFn = css.CssParser().getHoverInfoAtPosition,
             .ts_query_text = QUERY_STYLE_BLOCKS,
         },
     };
 
-    return Parser.getHoverDocFromCodeAtPosition(
+    return Parser.getHoverInfoFromCodeAtPosition(
+        temp_allocator,
         lang,
         code,
         column,
         row,
-        &symbols,
+        &.{
+            .{
+                .ts_query_text = TagsAndAttrsContext.QUERY_HOVER,
+                .perNodeCallback = TagsAndAttrsContext.callback,
+            },
+        },
         &injections,
-    );
+    ) catch |err| {
+        log.err("encountered error retrieving hover doc in HTML code: {}", .{err});
+        return null;
+    };
 }
 
-/// TODO: most of this code is copy-pasted from the parse function (same goes for other parsers), abstract the code out somehow
 fn getHoverInfoAtPosition(
+    temp_allocator: std.mem.Allocator,
     code: []const u8,
     column: u32,
     row: u32,
 ) ?HoverInfo {
     return getHoverInfoFromHtmlAtPosition(
+        temp_allocator,
         code,
         column,
         row,

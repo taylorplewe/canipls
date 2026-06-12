@@ -143,7 +143,6 @@ pub fn @"textDocument/didOpen"(
         params.textDocument.text,
     );
 
-    log.info("doc.src.len: {d}", .{doc.src.len});
     if (config.config.show_low_support_warnings) {
         try self.parseCodeAndPublishDiagnosticsForFile(
             temp_allocator,

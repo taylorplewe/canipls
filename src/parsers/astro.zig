@@ -30,42 +30,29 @@ fn init() void {
 fn deinit() void {
     lang_astro.destroy();
 }
+
+pub const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
+pub const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
+
 fn parse(
     allocator: std.mem.Allocator,
     code: []const u8,
     start_column: u32,
     start_row: u32,
 ) []const lsp.types.Diagnostic {
-    const QUERY_TAGS = "(start_tag (tag_name) @tagname)";
-    const QUERY_ATTRS = "(attribute_name) @attrname";
-    const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
-    const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
     const QUERY_FRONTMATTER_JS = "(frontmatter (frontmatter_js_block) @js)";
-
-    const symbols = [_]types.SymbolInfo{
-        .{
-            .element_kind = .HtmlAttribute,
-            .support_bin = bins.bin_map.get(.HtmlAttributes).?,
-            .ts_query_text = QUERY_ATTRS,
-        },
-        .{
-            .element_kind = .HtmlElement,
-            .support_bin = bins.bin_map.get(.HtmlTags).?,
-            .ts_query_text = QUERY_TAGS,
-        },
-    };
 
     const injections = [_]types.InjectionParseInfo{
         .{
-            .injection_parse_fn = js.JavascriptParser().parse,
-            .ts_query_text = QUERY_FRONTMATTER_JS,
-        },
-        .{
-            .injection_parse_fn = js.JavascriptParser().parse,
+            .injectionParseFn = js.JavascriptParser().parse,
             .ts_query_text = QUERY_SCRIPT_BLOCKS,
         },
         .{
-            .injection_parse_fn = css.CssParser().parse,
+            .injectionParseFn = js.JavascriptParser().parse,
+            .ts_query_text = QUERY_FRONTMATTER_JS,
+        },
+        .{
+            .injectionParseFn = css.CssParser().parse,
             .ts_query_text = QUERY_STYLE_BLOCKS,
         },
     };
@@ -77,56 +64,57 @@ fn parse(
         start_column,
         start_row,
         html.trimComment,
-        &symbols,
+        &.{
+            .{
+                .ts_query_text = html.TagsAndAttrsContext.QUERY_DIAGNOSTICS,
+                .perNodeCallback = html.TagsAndAttrsContext.callback,
+            },
+        },
         &injections,
-    );
+    ) catch |err| {
+        log.err("could not get diagnostics for Astro code: {}", .{err});
+        return &.{};
+    };
 }
 
 fn getHoverInfoAtPosition(
+    temp_allocator: std.mem.Allocator,
     code: []const u8,
     column: u32,
     row: u32,
 ) ?HoverInfo {
-    const QUERY_TAGS = "(start_tag (tag_name) @tagname)";
-    const QUERY_ATTRS = "(attribute_name) @attrname";
-    const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
-    const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
     const QUERY_FRONTMATTER_JS = "(frontmatter (frontmatter_js_block) @js)";
-
-    const symbols = [_]types.SymbolInfo{
-        .{
-            .element_kind = .HtmlAttribute,
-            .support_bin = bins.bin_map.get(.HtmlAttributes).?,
-            .ts_query_text = QUERY_ATTRS,
-        },
-        .{
-            .element_kind = .HtmlElement,
-            .support_bin = bins.bin_map.get(.HtmlTags).?,
-            .ts_query_text = QUERY_TAGS,
-        },
-    };
 
     const injections = [_]types.InjectionHoverInfo{
         .{
-            .injection_hover_fn = js.JavascriptParser().getHoverInfoAtPosition,
-            .ts_query_text = QUERY_FRONTMATTER_JS,
-        },
-        .{
-            .injection_hover_fn = js.JavascriptParser().getHoverInfoAtPosition,
+            .injectionHoverFn = js.JavascriptParser().getHoverInfoAtPosition,
             .ts_query_text = QUERY_SCRIPT_BLOCKS,
         },
         .{
-            .injection_hover_fn = css.CssParser().getHoverInfoAtPosition,
+            .injectionHoverFn = js.JavascriptParser().getHoverInfoAtPosition,
+            .ts_query_text = QUERY_FRONTMATTER_JS,
+        },
+        .{
+            .injectionHoverFn = css.CssParser().getHoverInfoAtPosition,
             .ts_query_text = QUERY_STYLE_BLOCKS,
         },
     };
 
-    return Parser.getHoverDocFromCodeAtPosition(
+    return Parser.getHoverInfoFromCodeAtPosition(
+        temp_allocator,
         lang_astro,
         code,
         column,
         row,
-        &symbols,
+        &.{
+            .{
+                .ts_query_text = html.TagsAndAttrsContext.QUERY_HOVER,
+                .perNodeCallback = html.TagsAndAttrsContext.callback,
+            },
+        },
         &injections,
-    );
+    ) catch |err| {
+        log.err("encountered error retrieving hover doc: {}", .{err});
+        return null;
+    };
 }

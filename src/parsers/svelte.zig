@@ -43,11 +43,13 @@ fn parse(
 }
 
 fn getHoverInfoAtPosition(
+    temp_allocator: std.mem.Allocator,
     code: []const u8,
     column: u32,
     row: u32,
 ) ?HoverInfo {
     return html.getHoverInfoFromHtmlAtPosition(
+        temp_allocator,
         code,
         column,
         row,

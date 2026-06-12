@@ -59,20 +59,20 @@ fn getParserFromLspLanguageKind(language_kind: lsp.types.TextDocument.LanguageKi
 }
 
 pub fn parseCodeAndGetDiagnostics(
-    allocator: std.mem.Allocator,
+    temp_allocator: std.mem.Allocator,
     language_kind: lsp.types.TextDocument.LanguageKind,
     code: []const u8,
 ) []const lsp.types.Diagnostic {
     const parser = getParserFromLspLanguageKind(language_kind) orelse return &.{};
     return parser.parse(
-        allocator,
+        temp_allocator,
         code,
         0,
         0,
     );
 }
 
-const CANIUSE_HREF_PREFIX = "https://caniuse.com/";
+const CANIUSE_HREF_PREFIX = "https://caniuse.com/mdn-";
 pub fn getHoverDocAtPosition(
     temp_allocator: std.mem.Allocator,
     position: lsp.types.Position,
@@ -80,7 +80,12 @@ pub fn getHoverDocAtPosition(
 ) ?lsp.types.Hover {
     const parser = getParserFromLspLanguageKind(document.language) orelse return null;
 
-    const hover_info = parser.getHoverInfoAtPosition(document.src, position.character, position.line);
+    const hover_info = parser.getHoverInfoAtPosition(
+        temp_allocator,
+        document.src,
+        position.character,
+        position.line,
+    );
     if (hover_info) |info| {
         const hover_content = std.fmt.allocPrint(
             temp_allocator,

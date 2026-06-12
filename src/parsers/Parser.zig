@@ -7,12 +7,7 @@ const ts = @import("tree-sitter");
 const config = @import("../config.zig");
 const types = @import("../types.zig");
 const utils = @import("../utils.zig");
-const HoverInfo = types.HoverInfo;
-const ElementKind = types.ElementKind;
-const IgnoredSpan = types.IgnoredSpan;
-const SymbolInfo = types.SymbolInfo;
-const InjectionParseInfo = types.InjectionParseInfo;
-const InjectionHoverInfo = types.InjectionHoverInfo;
+const bins = @import("bins.zig");
 
 const log = std.log.scoped(.canipls);
 
@@ -27,15 +22,16 @@ parse: *const fn (
     start_row: u32,
 ) []const lsp.types.Diagnostic,
 getHoverInfoAtPosition: *const fn (
+    temp_allocator: std.mem.Allocator,
     code: []const u8,
     column: u32,
     row: u32,
-) ?HoverInfo,
+) ?types.HoverInfo,
 
 pub fn getLspDiagnosticFromTsNode(
     allocator: std.mem.Allocator,
     node: *const ts.Node,
-    element_kind: ElementKind,
+    node_kind: types.TsNodeKind,
     global_support_percentage: f32,
     start_column: u32,
     start_row: u32,
@@ -48,14 +44,14 @@ pub fn getLspDiagnosticFromTsNode(
         },
         .message = getDiagnosticPhraseFromElement(
             allocator,
-            element_kind,
+            node_kind,
             global_support_percentage,
         ),
         .severity = .Warning,
     };
 }
-fn getDiagnosticPhraseFromElement(allocator: std.mem.Allocator, element_kind: ElementKind, global_support_percentage: f32) []u8 {
-    const kind_word = element_kind.getWord();
+fn getDiagnosticPhraseFromElement(allocator: std.mem.Allocator, node_kind: types.TsNodeKind, global_support_percentage: f32) []u8 {
+    const kind_word = node_kind.getDisplayName();
     return std.fmt.allocPrint(
         allocator,
         "This {s} only has {d:.2}% global support on caniuse.com",
@@ -65,276 +61,220 @@ fn getDiagnosticPhraseFromElement(allocator: std.mem.Allocator, element_kind: El
         return "";
     };
 }
-var identifier_buf: [BIN_FILE_STRING_WIDTH]u8 = undefined;
-pub fn getSupportPercentageAndCiuIdForIdentifierFromBin(
-    identifier_name: []const u8,
-    bin: []const u8,
-) ?struct { f32, []const u8 } {
-    if (identifier_name.len > BIN_FILE_STRING_WIDTH) return null;
-
-    // make identifier name in question 32-chars wide, padded with 0's
-    @memcpy(identifier_buf[0..identifier_name.len], identifier_name);
-    if (identifier_name.len < 32)
-        @memset(identifier_buf[identifier_name.len..], 0);
-
-    const num_features_in_bin = std.mem.readInt(u32, bin[0..4], .little);
-    const sizeof_support_section = num_features_in_bin * @sizeOf(f32);
-    const sizeof_identifier_section = num_features_in_bin * BIN_FILE_STRING_WIDTH;
-
-    var next_identifier_offset = sizeof_support_section + @sizeOf(u32);
-    var next_ciu_id_addr_offset = next_identifier_offset + sizeof_identifier_section;
-
-    // search for feature
-    for (0..num_features_in_bin) |i| {
-        const name = bin[next_identifier_offset..][0..BIN_FILE_STRING_WIDTH];
-        // const ciu_id_addr = std.mem.readInt(u32, bin[next_ciu_id_addr_offset..][0..@sizeOf(u32)], .little);
-        const ciu_id_addr = utils.getValueFromData(u32, bin[next_ciu_id_addr_offset..]);
-        const ciu_id_len = bin[ciu_id_addr];
-        const ciu_id = bin[ciu_id_addr + 1 ..][0..ciu_id_len];
-
-        // TODO: simd vector search
-        if (std.mem.eql(u8, &identifier_buf, name)) {
-            const support_percentage_offset = (@sizeOf(f32) * i) + @sizeOf(u32);
-            const support_percentage: f32 = utils.getValueFromData(f32, bin[support_percentage_offset..]);
-            return .{ support_percentage, ciu_id };
-        }
-        next_identifier_offset += BIN_FILE_STRING_WIDTH;
-        next_ciu_id_addr_offset += @sizeOf(u32);
-    }
-    return null;
-}
 
 pub fn getDiagnosticsFromCode(
     /// This should be the temporary allocator provided by the LSP handler function; the allocated memory is *NOT* freed in this code.
     allocator: std.mem.Allocator,
     lang: *ts.Language,
     code: []const u8,
+    /// Used for injection languages (e.g. JavaScript inside of an HTML `<script>` element)
     code_offset_column: u32,
+    /// Used for injection languages (e.g. JavaScript inside of an HTML `<script>` element)
     code_offset_row: u32,
-    /// A function used to extract the actual comment text from the whole comment syntax (e.g. remove leading "<!-- " and trailing " -->")
-    comment_trim_fn: *const fn (in: []const u8) []const u8,
-    symbols: []const SymbolInfo,
-    injections: []const InjectionParseInfo,
-) []const lsp.types.Diagnostic {
-    const QUERY_COMMENT = "(comment) @comment"; // this is the same for all 3 TS parsers; HTML, CSS and JS.
-
+    /// A function used to extract the actual comment text from the whole comment syntax (e.g. remove leading "<!-- " and trailing " -->" in HTML)
+    trimComment: *const fn (in: []const u8) []const u8,
+    queries: []const types.QueryInfo,
+    injections: []const types.InjectionParseInfo,
+) ![]lsp.types.Diagnostic {
     const parser = ts.Parser.create();
     defer parser.destroy();
-    parser.setLanguage(lang) catch return &.{};
+    try parser.setLanguage(lang);
 
     var diagnostics: std.ArrayList(lsp.types.Diagnostic) = .empty;
 
     const parse_res = parser.parseString(code, null);
     if (parse_res) |ast| {
         defer ast.destroy();
+        var root_node = ast.rootNode();
 
-        const root_node = ast.rootNode();
+        const ignored_spans = getIgnoreSpansFromCode(
+            allocator,
+            lang,
+            &root_node,
+            trimComment,
+            &diagnostics,
+            code,
+        );
+        defer allocator.free(ignored_spans);
 
         var error_offset: u32 = 0;
-
         const cursor = ts.QueryCursor.create();
         defer cursor.destroy();
 
-        const comment_query = ts.Query.create(lang, QUERY_COMMENT, &error_offset) catch |err| {
-            log.err("could not create tree-sitter comment query: {}", .{err});
-            return &.{};
-        };
-        defer comment_query.destroy();
-
-        // comments (look for canipls-ignore)
-        var ignored_spans: std.ArrayList(IgnoredSpan) = .empty;
-        defer ignored_spans.deinit(allocator);
-        var current_ignore_region_start_row: ?usize = null;
-        cursor.exec(comment_query, root_node);
-        while (cursor.nextMatch()) |match| {
-            const comment_node = match.captures[0].node;
-            const comment_raw = code[comment_node.startByte()..comment_node.endByte()];
-            const comment = comment_trim_fn(comment_raw);
-
-            // gather up all the canipls-ignore spans, for later
-            if (std.mem.eql(u8, comment, "canipls-ignore-file")) {
-                return &.{};
-            } else if (std.mem.eql(u8, comment, "canipls-ignore")) {
-                ignored_spans.append(allocator, .{ .row = comment_node.startPoint().row }) catch return &.{};
-            } else if (std.mem.eql(u8, comment, "canipls-ignore-nextline")) {
-                ignored_spans.append(allocator, .{ .row = comment_node.startPoint().row + 1 }) catch return &.{};
-            } else if (std.mem.eql(u8, comment, "canipls-ignore-start")) {
-                if (current_ignore_region_start_row) |row_start| {
-                    diagnostics.append(allocator, .{
-                        .range = .{
-                            .start = .{ .character = comment_node.startPoint().column, .line = comment_node.startPoint().row },
-                            .end = .{ .character = comment_node.endPoint().column, .line = comment_node.endPoint().row },
-                        },
-                        .message = std.fmt.allocPrint(allocator, "This ignore-start shadows the one found on line {d}", .{row_start + 1}) catch |err| {
-                            log.err("could not call allocPrint() when appending comment diagnostic: {}", .{err});
-                            return diagnostics.items;
-                        },
-                        .severity = .Warning,
-                    }) catch return &.{};
-                } else {
-                    current_ignore_region_start_row = comment_node.startPoint().row;
-                }
-            } else if (std.mem.eql(u8, comment, "canipls-ignore-end")) {
-                if (current_ignore_region_start_row) |row_start| {
-                    ignored_spans.append(
-                        allocator,
-                        .{
-                            .region = .{ .row_start = row_start, .row_end = comment_node.startPoint().row },
-                        },
-                    ) catch return &.{};
-                } else {
-                    diagnostics.append(allocator, .{
-                        .range = .{
-                            .start = .{ .character = comment_node.startPoint().column, .line = comment_node.startPoint().row },
-                            .end = .{ .character = comment_node.endPoint().column, .line = comment_node.endPoint().row },
-                        },
-                        .message = std.fmt.allocPrint(allocator, "This ignore-end has no ignore-start pairing", .{}) catch |err| {
-                            log.err("could not call allocPrint() when appending comment diagnostic: {}", .{err});
-                            return diagnostics.items;
-                        },
-                        .severity = .Warning,
-                    }) catch return &.{};
-                }
-            }
-        }
-
-        for (symbols) |symbol_info| {
-            const query = ts.Query.create(lang, symbol_info.ts_query_text, &error_offset) catch |err| {
-                log.err("could not create tree-sitter query: {}", .{err});
-                return diagnostics.items;
-            };
+        for (queries) |query_info| {
+            const query = try ts.Query.create(lang, query_info.ts_query_text, &error_offset);
             defer query.destroy();
 
             cursor.exec(query, root_node);
-            match_loop: while (cursor.nextMatch()) |match| {
-                const node = match.captures[0].node;
-                const name = code[node.startByte()..node.endByte()][symbol_info.name_trim_start..];
+            while (cursor.nextMatch()) |match| {
+                capture_loop: for (match.captures, 0..) |capture, capture_index| {
+                    const node = capture.node;
 
-                // contained in an ignore span? if so, skip
-                for (ignored_spans.items) |span| {
-                    switch (span) {
-                        .row => |ignored_row| {
-                            if (node.startPoint().row == ignored_row) continue :match_loop;
-                        },
-                        .region => |ignored_region| {
-                            if (node.startPoint().row > ignored_region.row_start and node.startPoint().row < ignored_region.row_end) continue :match_loop;
-                        },
+                    // contained in an ignore span? if so, skip
+                    for (ignored_spans) |span| {
+                        switch (span) {
+                            .row => |ignored_row| {
+                                if (node.startPoint().row == ignored_row) continue :capture_loop;
+                            },
+                            .region => |ignored_region| {
+                                if (node.startPoint().row > ignored_region.row_start and node.startPoint().row < ignored_region.row_end) continue :capture_loop;
+                            },
+                        }
                     }
-                }
 
-                // look up this symbol in the appropriate support bin file
-                const maybe_feature_info = getSupportPercentageAndCiuIdForIdentifierFromBin(name, symbol_info.support_bin);
-                if (maybe_feature_info) |feature_info| {
-                    const percentage, const ciu_id = feature_info;
-                    _ = ciu_id; // autofix
-                    if (percentage < config.config.support_threshold) diagnostics.append(allocator, getLspDiagnosticFromTsNode(
-                        allocator,
+                    // each syntax type looks for symbols differently; this is done through callbacks provided to this function
+                    const symbol_stacks = query_info.perNodeCallback(
                         &node,
-                        symbol_info.element_kind,
-                        percentage,
-                        code_offset_column,
-                        code_offset_row,
-                    )) catch |err| {
-                        log.err("could not add diagnostic to `diagnostics` ArrayList: {}", .{err});
-                        return diagnostics.items;
+                        capture_index == 0,
+                        code,
+                        allocator,
+                    ) catch |err| {
+                        log.err("could not get symbol stack: {}", .{err});
+                        continue :capture_loop;
                     };
+                    defer {
+                        for (symbol_stacks) |stack| {
+                            allocator.free(stack);
+                        }
+                        allocator.free(symbol_stacks);
+                    }
+
+                    // take the symbol stacks and search the bin files for support info
+                    symbol_stack_loop: for (symbol_stacks) |symbol_stack| {
+                        const maybe_feature_info = bins.getSymbolSupportInfoFromBin(symbol_stack);
+                        if (maybe_feature_info) |feature_info| {
+                            // already found one as a child of one of the previous queries? those take precedence
+                            // TODO: see if this is the most efficient way of checking this
+                            // this effectively moves parsing a file & adding diagnostics from O(n) -> O(n log n)
+                            for (diagnostics.items) |diagnostic| {
+                                if (diagnostic.range.start.line == node.startPoint().row and diagnostic.range.start.character == node.startPoint().column)
+                                    continue :symbol_stack_loop;
+                            }
+                            if (feature_info.support < config.config.support_threshold) {
+                                diagnostics.append(allocator, getLspDiagnosticFromTsNode(
+                                    allocator,
+                                    &node,
+                                    symbol_stack[symbol_stack.len - 1].node_kind,
+                                    feature_info.support,
+                                    code_offset_column,
+                                    code_offset_row,
+                                )) catch |err| {
+                                    log.err("could not add diagnostic for symbol {s} to `diagnostics` ArrayList: {}", .{ symbol_stack[symbol_stack.len - 1].name, err });
+                                };
+                            }
+                            break :symbol_stack_loop;
+                        }
+                    }
                 }
             }
         }
 
         for (injections) |injection_info| {
-            const query = ts.Query.create(lang, injection_info.ts_query_text, &error_offset) catch |err| {
-                log.err("could not create tree-sitter query: {}", .{err});
-                return &.{};
-            };
-            defer query.destroy();
+            const inj_query = try ts.Query.create(lang, injection_info.ts_query_text, &error_offset);
+            defer inj_query.destroy();
 
             // injection languages inside this language
-            cursor.exec(query, root_node);
+            cursor.exec(inj_query, root_node);
             while (cursor.nextMatch()) |match| {
                 const injection_node = match.captures[0].node;
                 const injection_code = code[injection_node.startByte()..injection_node.endByte()];
 
-                const injection_diagnostics = injection_info.injection_parse_fn(
+                const injection_diagnostics = injection_info.injectionParseFn(
                     allocator,
                     injection_code,
                     injection_node.startPoint().column,
                     injection_node.startPoint().row,
                 );
 
-                diagnostics.appendSlice(allocator, injection_diagnostics) catch |err| {
-                    log.err("could not add injection diagnostics to `diagnostics` ArrayList: {}", .{err});
-                    return diagnostics.items;
-                };
+                try diagnostics.appendSlice(allocator, injection_diagnostics);
             }
         }
     }
 
-    return diagnostics.items;
+    return try diagnostics.toOwnedSlice(allocator);
 }
 
-pub fn getHoverDocFromCodeAtPosition(
+pub fn getHoverInfoFromCodeAtPosition(
+    /// This should be the temporary allocator provided by the LSP handler function; the allocated memory is *NOT* freed in this code.
+    allocator: std.mem.Allocator,
     lang: *ts.Language,
     code: []const u8,
+    /// Used for injection languages (e.g. JavaScript inside of an HTML `<script>` element)
     column: u32,
+    /// Used for injection languages (e.g. JavaScript inside of an HTML `<script>` element)
     row: u32,
-    symbols: []const SymbolInfo,
-    injections: []const InjectionHoverInfo,
-) ?HoverInfo {
+    queries: []const types.QueryInfo,
+    injections: []const types.InjectionHoverInfo,
+) !?types.HoverInfo {
     const parser = ts.Parser.create();
     defer parser.destroy();
-    parser.setLanguage(lang) catch return null;
+    try parser.setLanguage(lang);
 
     const parse_res = parser.parseString(code, null);
     if (parse_res) |ast| {
         defer ast.destroy();
-
         const root_node = ast.rootNode();
 
         var error_offset: u32 = 0;
-
         const cursor = ts.QueryCursor.create();
         defer cursor.destroy();
 
-        cursor.setPointRange(
+        try cursor.setPointRange(
             .{ .column = column, .row = row },
             .{ .column = column, .row = row },
-        ) catch return null;
+        );
 
-        for (symbols) |symbol_info| {
-            const query = ts.Query.create(lang, symbol_info.ts_query_text, &error_offset) catch |err| {
-                log.err("could not create tree-sitter query: {}", .{err});
-                return null;
-            };
+        for (queries) |query_info| {
+            const query = try ts.Query.create(lang, query_info.ts_query_text, &error_offset);
             defer query.destroy();
 
             cursor.exec(query, root_node);
             while (cursor.nextMatch()) |match| {
-                const node = match.captures[0].node;
-                const name = code[node.startByte()..node.endByte()][symbol_info.name_trim_start..];
+                capture_loop: for (match.captures, 0..) |capture, capture_index| {
+                    const node = capture.node;
 
-                // look up this symbol in the appropriate support bin file
-                const maybe_feature_info = getSupportPercentageAndCiuIdForIdentifierFromBin(name, symbol_info.support_bin);
-                if (maybe_feature_info) |feature_info| {
-                    const percentage, const ciu_id = feature_info;
-                    return HoverInfo{
-                        .caniuse_id = ciu_id,
-                        .identifier = name,
-                        .support_percentage = percentage,
+                    // each syntax type looks for symbols & child symbols differently; this is done through callbacks provided to this function
+                    const symbol_stacks = query_info.perNodeCallback(
+                        &node,
+                        capture_index == 0,
+                        code,
+                        allocator,
+                    ) catch |err| {
+                        log.err("could not get symbol stack: {}", .{err});
+                        continue :capture_loop;
                     };
+                    defer {
+                        for (symbol_stacks) |stack| {
+                            allocator.free(stack);
+                        }
+                        allocator.free(symbol_stacks);
+                    }
+
+                    // is this the node being hovered over?
+                    if (node.startPoint().row != row or column < node.startPoint().column or column > node.endPoint().column)
+                        continue :capture_loop;
+
+                    // take the symbol stacks and search the bin files for support info
+                    for (symbol_stacks) |symbol_stack| {
+                        const maybe_feature_info = bins.getSymbolSupportInfoFromBin(symbol_stack);
+                        if (maybe_feature_info) |feature_info| {
+                            return types.HoverInfo{
+                                .caniuse_id = feature_info.ciu_id,
+                                .identifier = symbol_stack[symbol_stack.len - 1].name,
+                                .support_percentage = feature_info.support,
+                            };
+                        }
+                    }
                 }
             }
         }
 
         for (injections) |injection_info| {
-            const query = ts.Query.create(lang, injection_info.ts_query_text, &error_offset) catch |err| {
-                log.err("could not create tree-sitter query: {}", .{err});
-                return null;
-            };
-            defer query.destroy();
+            const inj_query = try ts.Query.create(lang, injection_info.ts_query_text, &error_offset);
+            defer inj_query.destroy();
 
             // injection languages inside this language
-            cursor.exec(query, root_node);
+            cursor.exec(inj_query, root_node);
             while (cursor.nextMatch()) |match| {
                 const injection_node = match.captures[0].node;
                 const injection_code = code[injection_node.startByte()..injection_node.endByte()];
@@ -344,7 +284,8 @@ pub fn getHoverDocFromCodeAtPosition(
                     continue;
                 const injection_column = if (injection_row == 0) column - injection_node.startPoint().column else column;
 
-                return injection_info.injection_hover_fn(
+                return injection_info.injectionHoverFn(
+                    allocator,
                     injection_code,
                     injection_column,
                     injection_row,
@@ -352,5 +293,86 @@ pub fn getHoverDocFromCodeAtPosition(
             }
         }
     }
-    return null;
+
+    return null; // symbol not found
+}
+
+const QUERY_COMMENT = "(comment) @comment"; // this is the same for all 3 TS parsers; HTML, CSS and JS.
+/// Get a list of canipls-ignore ranges in a piece of code
+///
+/// Caller owns returned memory
+fn getIgnoreSpansFromCode(
+    allocator: std.mem.Allocator,
+    lang: *ts.Language,
+    root_node: *ts.Node,
+    trimComment: *const fn (in: []const u8) []const u8,
+    diagnostics: *std.ArrayList(lsp.types.Diagnostic),
+    code: []const u8,
+) []types.IgnoredSpan {
+    const cursor = ts.QueryCursor.create();
+    defer cursor.destroy();
+
+    var error_offset: u32 = 0;
+    const comment_query = ts.Query.create(lang, QUERY_COMMENT, &error_offset) catch |err| {
+        log.err("could not create tree-sitter comment query: {}", .{err});
+        return &.{};
+    };
+    defer comment_query.destroy();
+
+    var ignored_spans: std.ArrayList(types.IgnoredSpan) = .empty;
+    var current_ignore_region_start_row: ?usize = null;
+    cursor.exec(comment_query, root_node.*);
+    while (cursor.nextMatch()) |match| {
+        const comment_node = match.captures[0].node;
+        const comment_raw = code[comment_node.startByte()..comment_node.endByte()];
+        const comment = trimComment(comment_raw);
+
+        // gather up all the canipls-ignore spans, for later
+        if (std.mem.eql(u8, comment, "canipls-ignore-file")) {
+            return &.{};
+        } else if (std.mem.eql(u8, comment, "canipls-ignore")) {
+            ignored_spans.append(allocator, .{ .row = comment_node.startPoint().row }) catch return &.{};
+        } else if (std.mem.eql(u8, comment, "canipls-ignore-nextline")) {
+            ignored_spans.append(allocator, .{ .row = comment_node.startPoint().row + 1 }) catch return &.{};
+        } else if (std.mem.eql(u8, comment, "canipls-ignore-start")) {
+            if (current_ignore_region_start_row) |row_start| {
+                diagnostics.append(allocator, .{
+                    .range = .{
+                        .start = .{ .character = comment_node.startPoint().column, .line = comment_node.startPoint().row },
+                        .end = .{ .character = comment_node.endPoint().column, .line = comment_node.endPoint().row },
+                    },
+                    .message = std.fmt.allocPrint(allocator, "This ignore-start shadows the one found on line {d}", .{row_start + 1}) catch |err| {
+                        log.err("could not call allocPrint() when appending comment diagnostic: {}", .{err});
+                        return ignored_spans.toOwnedSlice(allocator) catch &.{};
+                    },
+                    .severity = .Warning,
+                }) catch return &.{};
+            } else {
+                current_ignore_region_start_row = comment_node.startPoint().row;
+            }
+        } else if (std.mem.eql(u8, comment, "canipls-ignore-end")) {
+            if (current_ignore_region_start_row) |row_start| {
+                ignored_spans.append(
+                    allocator,
+                    .{
+                        .region = .{ .row_start = row_start, .row_end = comment_node.startPoint().row },
+                    },
+                ) catch return &.{};
+            } else {
+                diagnostics.append(allocator, .{
+                    .range = .{
+                        .start = .{ .character = comment_node.startPoint().column, .line = comment_node.startPoint().row },
+                        .end = .{ .character = comment_node.endPoint().column, .line = comment_node.endPoint().row },
+                    },
+                    .message = std.fmt.allocPrint(allocator, "This ignore-end has no ignore-start pairing", .{}) catch |err| {
+                        log.err("could not call allocPrint() when appending comment diagnostic: {}", .{err});
+                        return ignored_spans.toOwnedSlice(allocator) catch &.{};
+                    },
+                    .severity = .Warning,
+                }) catch return &.{};
+            }
+        }
+    }
+
+    return ignored_spans.toOwnedSlice(allocator) catch &.{};
 }
