@@ -233,10 +233,6 @@ pub fn getHoverInfoFromCodeAtPosition(
                 capture_loop: for (match.captures, 0..) |capture, capture_index| {
                     const node = capture.node;
 
-                    // is this the node being hovered over?
-                    if (node.startPoint().row != row or column < node.startPoint().column or column > node.endPoint().column)
-                        continue :capture_loop;
-
                     // each syntax type looks for symbols & child symbols differently; this is done through callbacks provided to this function
                     const symbol_stacks = query_info.perNodeCallback(
                         &node,
@@ -253,6 +249,10 @@ pub fn getHoverInfoFromCodeAtPosition(
                         }
                         allocator.free(symbol_stacks);
                     }
+
+                    // is this the node being hovered over?
+                    if (node.startPoint().row != row or column < node.startPoint().column or column > node.endPoint().column)
+                        continue :capture_loop;
 
                     // take the symbol stacks and search the bin files for support info
                     for (symbol_stacks) |symbol_stack| {
