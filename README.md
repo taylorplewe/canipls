@@ -161,4 +161,4 @@ show_low_support_warnings true
 
 ---
 > [!NOTE]
-> This project is researched, designed, and written completely by hand. Among other reasons, quality is a higher priority than quantity for this project. Pull requests that contain AI-generated content of any kind will be rejected.
+> This project is researched, designed, and written completely by hand. Among other reasons, **quality is a very high priority for this project.** Pull requests that contain AI-generated content of any kind will be rejected.
