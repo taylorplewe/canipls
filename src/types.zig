@@ -88,7 +88,7 @@ pub const QueryInfo = struct {
 pub const InjectionParseInfo = struct {
     ts_query_text: []const u8,
     injectionParseFn: *const fn (
-        temp_allocator: std.mem.Allocator,
+        allocator: std.mem.Allocator,
         code: []const u8,
         code_offset_column: u32,
         code_offset_row: u32,
@@ -97,7 +97,7 @@ pub const InjectionParseInfo = struct {
 pub const InjectionHoverInfo = struct {
     ts_query_text: []const u8,
     injectionHoverFn: *const fn (
-        temp_allocator: std.mem.Allocator,
+        allocator: std.mem.Allocator,
         code: []const u8,
         relative_column: u32,
         relative_row: u32,
