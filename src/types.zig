@@ -62,19 +62,6 @@ pub const TsNodeKind = enum {
     }
 };
 
-// TODO: possibly delete these idk if I need them
-// pub const ts_node_kind_str_to_enum_html: std.StaticStringMap(TsNodeKind) = .initComptime(.{
-//     .{ "tag_name", .HtmlTag },
-//     .{ "attribute_name", .HtmlTag },
-//     .{ "attribute_value", .HtmlStringLiteral },
-// });
-
-// pub const ts_node_kind_str_to_enum_css: std.StaticStringMap(TsNodeKind) = .initComptime(.{
-//     .{ "property_name", .CssProperty },
-//     .{ "at_keyword", .CssAtRule },
-//     .{ "tag_name", .HtmlTag },
-// });
-
 /// For each of these passed to `Parser.getDiagnosticsFromCode()`, it will search a set of code for features with low browser support
 pub const QueryInfo = struct {
     ts_query_text: []const u8,

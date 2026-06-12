@@ -34,8 +34,7 @@ const sizeof_entry_per_section: std.EnumArray(BinSection, usize) = blk: {
     }
     break :blk sizes;
 };
-// TEMP: shouldn't need to be public after child nodes refactor
-pub const Bin = struct {
+const Bin = struct {
     data: []const u8,
     num_features_total: usize,
     num_features_toplevel: usize,
@@ -228,8 +227,6 @@ pub fn init(server_allocator: std.mem.Allocator, io: std.Io, environ_map: *std.p
         });
 
         // check that this version of canipls is compatible with every bin file
-        const min_compatible_canipls_version = utils.getValueFromDataAligned(u32, bin[0..]);
-        _ = min_compatible_canipls_version;
         const is_canipls_version_compatible =
             if (bin[0] > build_options.version.major)
                 false

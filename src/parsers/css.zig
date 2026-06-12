@@ -244,7 +244,7 @@ fn getHoverInfoAtPosition(
         },
         &.{},
     ) catch |err| {
-        log.err("encountered error retrieving hover doc: {}", .{err});
+        log.err("encountered error retrieving hover doc in CSS code: {}", .{err});
         return null;
     };
 }

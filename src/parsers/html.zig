@@ -47,27 +47,6 @@ fn parse(
     );
 }
 
-// TEMP
-const BinSection = enum {
-    Support,
-    CiuIdAddr,
-    Reserved,
-    FirstChildIndex,
-    NumChildren,
-    TreeSitterSyntaxNodeType,
-    Identifier,
-};
-var sizeof_entry_per_bin_section = std.EnumArray(BinSection, usize).init(.{
-    .Support = @sizeOf(f32),
-    .CiuIdAddr = @sizeOf(u32),
-    .Reserved = @sizeOf(u32),
-    .FirstChildIndex = @sizeOf(u32),
-    .NumChildren = @sizeOf(u16),
-    .TreeSitterSyntaxNodeType = @sizeOf(u8),
-    .Identifier = 32,
-});
-var identifier_buf: [32]u8 = undefined;
-
 pub const TagsAndAttrsContext = struct {
     var last_attr_name: ?[]const u8 = null;
     var tag_name: ?[]const u8 = null;
@@ -232,7 +211,7 @@ pub fn getHoverInfoFromHtmlAtPosition(
         },
         &injections,
     ) catch |err| {
-        log.err("encountered error retrieving hover doc: {}", .{err});
+        log.err("encountered error retrieving hover doc in HTML code: {}", .{err});
         return null;
     };
 }

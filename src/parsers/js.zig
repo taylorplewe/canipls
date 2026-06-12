@@ -14,9 +14,6 @@ const log = std.log.scoped(.canipls);
 
 extern fn tree_sitter_javascript() callconv(.c) *ts.Language;
 var lang_javascript: *ts.Language = undefined;
-// const js_identifiers_bin: []const u8 = @embedFile("js_identifiers.bin"); // TEMP
-// const html_tags_bin: []const u8 = @embedFile("html_tags.bin"); // TEMP
-// const html_attributes_bin: []const u8 = @embedFile("html_attributes.bin"); // TEMP
 
 pub fn JavascriptParser() Parser {
     return .{
@@ -155,18 +152,6 @@ const JsxContext = struct {
         \\  )
     ;
 
-    // pub const QUERY_HOVER =
-    //     \\(
-    //     \\  (tag_name) @tagname
-    //     \\  (attribute
-    //     \\    (attribute_name) @attrname
-    //     \\    (quoted_attribute_value
-    //     \\      (attribute_value) @attrval
-    //     \\    )?
-    //     \\  )*
-    //     \\)
-    // ;
-
     var last_attr_name: ?[]const u8 = null;
     var tag_name: ?[]const u8 = null;
 
@@ -268,7 +253,7 @@ fn getHoverInfoAtPosition(
         },
         &.{},
     ) catch |err| {
-        log.err("encountered error retrieving hover doc: {}", .{err});
+        log.err("encountered error retrieving hover doc in JavaScript code: {}", .{err});
         return null;
     };
 }

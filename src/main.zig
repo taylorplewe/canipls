@@ -19,13 +19,19 @@ pub fn main(init: std.process.Init) !void {
     );
     defer handler.deinit();
 
-    try config.set(init.io, init.environ_map);
+    config.set(init.io, init.environ_map) catch |err| {
+        log.err("could not set config: {}", .{err});
+    };
 
     bins.init(
         init.gpa,
         init.io,
         init.environ_map,
-    ) catch return;
+    ) catch |err| {
+        log.err("could not init bin files: {}", .{err});
+        // choosing to continue; the user might have previously-downloaded versions and can still use those.
+        // when searching for a bin, in the `getSymbolSupportInfoFromBin()` function in `bins.zig`, it just returns silently if it can't find a bin file
+    };
     defer bins.deinit(init.gpa);
 
     lsp_to_ts.init();
