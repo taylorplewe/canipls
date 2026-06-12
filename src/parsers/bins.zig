@@ -90,8 +90,7 @@ const InitBinsError = error{
     IncompatibleCaniplsVersion,
 };
 
-// const CANIPLS_BINS_URL = "https://whencaniuse.com/canipls-bins.tar.gz";
-const CANIPLS_BINS_URL = "https://whencaniuse.com/canipls-bins-new.tar.gz"; // TEMP !
+const CANIPLS_BINS_URL = "https://whencaniuse.com/canipls-bins.tar.gz";
 
 pub fn init(server_allocator: std.mem.Allocator, io: std.Io, environ_map: *std.process.Environ.Map) !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
