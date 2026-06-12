@@ -72,7 +72,7 @@ pub fn parseCodeAndGetDiagnostics(
     );
 }
 
-const CANIUSE_HREF_PREFIX = "https://caniuse.com/";
+const CANIUSE_HREF_PREFIX = "https://caniuse.com/mdn-";
 pub fn getHoverDocAtPosition(
     temp_allocator: std.mem.Allocator,
     position: lsp.types.Position,

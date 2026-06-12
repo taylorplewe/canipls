@@ -37,42 +37,59 @@ const node_kind_str_to_enum = std.StaticStringMap(types.TsNodeKind).initComptime
     .{ "tag_name", types.TsNodeKind.CssTagName },
     .{ "universal_selector", types.TsNodeKind.CssUniversalSelector },
 });
-fn parse(
-    allocator: std.mem.Allocator,
-    code: []const u8,
-    start_column: u32,
-    start_row: u32,
-) []const lsp.types.Diagnostic {
-    const QUERY_AT_RULES =
-        \\(
-        \\  (at_keyword) @rule
-        \\  _*
-        \\  (block
-        \\    [
-        \\      (declaration
-        \\        (property_name) @propname
-        \\      )
-        \\      (at_rule
-        \\        (at_keyword) @rule
-        \\      )
-        \\      _
-        \\    ]*
+
+const AtRulesContext = struct {
+    const QUERY =
+        \\(stylesheet
+        \\  (at_rule
+        \\    (at_keyword) @rule
+        \\    _*
+        \\    (block
+        \\      [
+        \\        (declaration
+        \\          (property_name) @propname
+        \\        )
+        \\        (at_rule
+        \\          (at_keyword) @rule
+        \\        )
+        \\        _
+        \\      ]*
+        \\    )
         \\  )
         \\)
     ;
+    var at_rule_name: ?[]const u8 = null;
+    pub fn callback(
+        node: *const ts.Node,
+        is_first_node: bool,
+        // TODO: I hate that this is here
+        c: []const u8,
+        // TODO: I hate that this is here
+        a: std.mem.Allocator,
+    ) std.mem.Allocator.Error![]const []const bins.BinSearchSymbolInfo {
+        const start_index: usize = if (is_first_node or std.mem.eql(u8, node.kind(), "at_keyword")) 1 else 0;
+        const name = c[node.startByte() + start_index .. node.endByte()];
+        if (is_first_node) {
+            at_rule_name = name;
+            return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
+                try a.dupe(bins.BinSearchSymbolInfo, &.{
+                    .{ .name = name, .node_kind = .CssAtRule },
+                }),
+            });
+        }
 
-    const QUERY_PROPERTIES =
-        \\(
-        \\  (property_name) @propname
-        \\  [
-        \\    (plain_value) @val
-        \\    (call_expression) @val
-        \\    _
-        \\  ]*
-        \\)
-    ;
+        const node_kind = node_kind_str_to_enum.get(node.kind()) orelse return &.{};
+        return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
+            try a.dupe(bins.BinSearchSymbolInfo, &.{
+                .{ .name = at_rule_name.?, .node_kind = .CssAtRule },
+                .{ .name = name, .node_kind = node_kind },
+            }),
+        });
+    }
+};
 
-    const QUERY_SELECTORS =
+const SelectorsContext = struct {
+    const QUERY =
         \\(
         \\  (selectors
         \\    (_
@@ -94,96 +111,83 @@ fn parse(
         \\)
     ;
 
-    const AtRulesContext = struct {
-        var at_rule_name: ?[]const u8 = null;
-        pub fn callback(
-            node: *const ts.Node,
-            is_first_node: bool,
-            c: []const u8,
-            a: std.mem.Allocator,
-        ) std.mem.Allocator.Error![]const []const bins.BinSearchSymbolInfo {
-            const start_index: usize = if (is_first_node or std.mem.eql(u8, node.kind(), "at_keyword")) 1 else 0;
-            const name = c[node.startByte() + start_index .. node.endByte()];
-            if (is_first_node) {
-                at_rule_name = name;
-                return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
-                    try a.dupe(bins.BinSearchSymbolInfo, &.{
-                        .{ .name = name, .node_kind = .CssAtRule },
-                    }),
-                });
-            }
+    var selector_name: ?[]const u8 = null;
+    pub fn callback(
+        node: *const ts.Node,
+        is_first_node: bool,
+        c: []const u8,
+        a: std.mem.Allocator,
+    ) std.mem.Allocator.Error![]const []const bins.BinSearchSymbolInfo {
+        const name = if (!is_first_node and node_kind_str_to_enum.get(node.kind()) == types.TsNodeKind.CssUniversalSelector)
+            "star"
+        else
+            c[node.startByte()..node.endByte()];
 
-            const node_kind = node_kind_str_to_enum.get(node.kind()) orelse return &.{};
+        if (is_first_node) {
+            selector_name = name;
             return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
                 try a.dupe(bins.BinSearchSymbolInfo, &.{
-                    .{ .name = at_rule_name.?, .node_kind = .CssAtRule },
-                    .{ .name = name, .node_kind = node_kind },
+                    .{ .name = name, .node_kind = .CssSelector },
                 }),
             });
         }
-    };
 
-    const SelectorsContext = struct {
-        var selector_name: ?[]const u8 = null;
-        pub fn callback(
-            node: *const ts.Node,
-            is_first_node: bool,
-            c: []const u8,
-            a: std.mem.Allocator,
-        ) std.mem.Allocator.Error![]const []const bins.BinSearchSymbolInfo {
-            const name = if (!is_first_node and node_kind_str_to_enum.get(node.kind()) == types.TsNodeKind.CssUniversalSelector)
-                "star"
-            else
-                c[node.startByte()..node.endByte()];
+        const node_kind = node_kind_str_to_enum.get(node.kind()) orelse return &.{};
+        return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
+            try a.dupe(bins.BinSearchSymbolInfo, &.{
+                .{ .name = selector_name.?, .node_kind = .CssSelector },
+                .{ .name = name, .node_kind = node_kind },
+            }),
+        });
+    }
+};
 
-            if (is_first_node) {
-                selector_name = name;
-                return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
-                    try a.dupe(bins.BinSearchSymbolInfo, &.{
-                        .{ .name = name, .node_kind = .CssSelector },
-                    }),
-                });
-            }
+const PropertiesContext = struct {
+    const QUERY =
+        \\(
+        \\  (property_name) @propname
+        \\  [
+        \\    (plain_value) @val
+        \\    (call_expression) @val
+        \\    _
+        \\  ]*
+        \\)
+    ;
 
-            const node_kind = node_kind_str_to_enum.get(node.kind()) orelse return &.{};
+    var property_name: ?[]const u8 = null;
+    pub fn callback(
+        node: *const ts.Node,
+        is_first_node: bool,
+        c: []const u8,
+        a: std.mem.Allocator,
+    ) std.mem.Allocator.Error![]const []const bins.BinSearchSymbolInfo {
+        const name = c[node.startByte()..node.endByte()];
+
+        if (is_first_node) {
+            property_name = name;
             return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
                 try a.dupe(bins.BinSearchSymbolInfo, &.{
-                    .{ .name = selector_name.?, .node_kind = .CssSelector },
-                    .{ .name = name, .node_kind = node_kind },
+                    .{ .name = name, .node_kind = .CssProperty },
                 }),
             });
         }
-    };
 
-    const PropertiesContext = struct {
-        var property_name: ?[]const u8 = null;
-        pub fn callback(
-            node: *const ts.Node,
-            is_first_node: bool,
-            c: []const u8,
-            a: std.mem.Allocator,
-        ) std.mem.Allocator.Error![]const []const bins.BinSearchSymbolInfo {
-            const name = c[node.startByte()..node.endByte()];
+        const node_kind = node_kind_str_to_enum.get(node.kind()) orelse return &.{};
+        return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
+            try a.dupe(bins.BinSearchSymbolInfo, &.{
+                .{ .name = property_name.?, .node_kind = .CssProperty },
+                .{ .name = name, .node_kind = node_kind },
+            }),
+        });
+    }
+};
 
-            if (is_first_node) {
-                property_name = name;
-                return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
-                    try a.dupe(bins.BinSearchSymbolInfo, &.{
-                        .{ .name = name, .node_kind = .CssProperty },
-                    }),
-                });
-            }
-
-            const node_kind = node_kind_str_to_enum.get(node.kind()) orelse return &.{};
-            return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
-                try a.dupe(bins.BinSearchSymbolInfo, &.{
-                    .{ .name = property_name.?, .node_kind = .CssProperty },
-                    .{ .name = name, .node_kind = node_kind },
-                }),
-            });
-        }
-    };
-
+fn parse(
+    allocator: std.mem.Allocator,
+    code: []const u8,
+    start_column: u32,
+    start_row: u32,
+) []const lsp.types.Diagnostic {
     return Parser.getDiagnosticsFromCode(
         allocator,
         lang_css,
@@ -193,15 +197,15 @@ fn parse(
         trimComment,
         &.{
             .{
-                .ts_query_text = QUERY_AT_RULES,
+                .ts_query_text = AtRulesContext.QUERY,
                 .perNodeCallback = AtRulesContext.callback,
             },
             .{
-                .ts_query_text = QUERY_PROPERTIES,
+                .ts_query_text = PropertiesContext.QUERY,
                 .perNodeCallback = PropertiesContext.callback,
             },
             .{
-                .ts_query_text = QUERY_SELECTORS,
+                .ts_query_text = SelectorsContext.QUERY,
                 .perNodeCallback = SelectorsContext.callback,
             },
         },
@@ -218,48 +222,31 @@ fn getHoverInfoAtPosition(
     column: u32,
     row: u32,
 ) ?HoverInfo {
-    _ = temp_allocator; // autofix
-    _ = code; // autofix
-    _ = column; // autofix
-    _ = row; // autofix
-    // const QUERY_PROPS = "(property_name) @propname";
-    // const QUERY_AT_RULES = "(at_keyword) @atrule";
-    // const QUERY_PSEUDO_ELEMENT_SELECTORS = "(pseudo_element_selector (tag_name) @pseudoelementname)";
-    // const QUERY_PSEUDO_CLASS_SELECTORS = "(pseudo_class_selector (class_name) @pseudoelementname)";
-
-    // const symbols = [_]types.SymbolInfo{
-    //     .{
-    //         .element_kind = .CssProp,
-    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.CssProperty),
-    //         .ts_query_text = QUERY_PROPS,
-    //     },
-    //     .{
-    //         .element_kind = .CssAtRule,
-    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.CssAtRule),
-    //         .ts_query_text = QUERY_AT_RULES,
-    //         .name_trim_start = 1,
-    //     },
-    //     .{
-    //         .element_kind = .CssSelector,
-    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.CssSelector),
-    //         .ts_query_text = QUERY_PSEUDO_CLASS_SELECTORS,
-    //     },
-    //     .{
-    //         .element_kind = .CssSelector,
-    //         .support_bin = bins.bin_map.getPtrConstAssertContains(.CssSelector),
-    //         .ts_query_text = QUERY_PSEUDO_ELEMENT_SELECTORS,
-    //     },
-    // };
-
-    // return Parser.getHoverDocFromCodeAtPosition(
-    //     lang_css,
-    //     code,
-    //     column,
-    //     row,
-    //     &symbols,
-    //     &.{},
-    // );
-    return null;
+    return Parser.getHoverInfoFromCodeAtPosition(
+        temp_allocator,
+        lang_css,
+        code,
+        column,
+        row,
+        &.{
+            .{
+                .ts_query_text = AtRulesContext.QUERY,
+                .perNodeCallback = AtRulesContext.callback,
+            },
+            .{
+                .ts_query_text = PropertiesContext.QUERY,
+                .perNodeCallback = PropertiesContext.callback,
+            },
+            .{
+                .ts_query_text = SelectorsContext.QUERY,
+                .perNodeCallback = SelectorsContext.callback,
+            },
+        },
+        &.{},
+    ) catch |err| {
+        log.err("encountered error retrieving hover doc: {}", .{err});
+        return null;
+    };
 }
 fn trimComment(comment_raw: []const u8) []const u8 {
     return std.mem.trim(

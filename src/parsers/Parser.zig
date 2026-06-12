@@ -237,7 +237,7 @@ pub fn getHoverInfoFromCodeAtPosition(
                     if (node.startPoint().row != row or column < node.startPoint().column or column > node.endPoint().column)
                         continue :capture_loop;
 
-                    // each syntax type looks for symbols differently; this is done through callbacks provided to this function
+                    // each syntax type looks for symbols & child symbols differently; this is done through callbacks provided to this function
                     const symbol_stacks = query_info.perNodeCallback(
                         &node,
                         capture_index == 0,
@@ -296,89 +296,6 @@ pub fn getHoverInfoFromCodeAtPosition(
 
     return null; // symbol not found
 }
-
-// pub fn getHoverDocFromCodeAtPosition(
-//     lang: *ts.Language,
-//     code: []const u8,
-//     column: u32,
-//     row: u32,
-//     symbols: []const types.SymbolInfo,
-//     injections: []const types.InjectionHoverInfo,
-// ) ?types.HoverInfo {
-//     const parser = ts.Parser.create();
-//     defer parser.destroy();
-//     parser.setLanguage(lang) catch return null;
-
-//     const parse_res = parser.parseString(code, null);
-//     if (parse_res) |ast| {
-//         defer ast.destroy();
-
-//         const root_node = ast.rootNode();
-
-//         var error_offset: u32 = 0;
-
-//         const cursor = ts.QueryCursor.create();
-//         defer cursor.destroy();
-
-//         cursor.setPointRange(
-//             .{ .column = column, .row = row },
-//             .{ .column = column, .row = row },
-//         ) catch return null;
-
-//         for (symbols) |symbol_info| {
-//             const query = ts.Query.create(lang, symbol_info.ts_query_text, &error_offset) catch |err| {
-//                 log.err("could not create tree-sitter query: {}", .{err});
-//                 return null;
-//             };
-//             defer query.destroy();
-
-//             cursor.exec(query, root_node);
-//             while (cursor.nextMatch()) |match| {
-//                 const node = match.captures[0].node;
-//                 const name = code[node.startByte()..node.endByte()][symbol_info.name_trim_start..];
-
-//                 // look up this symbol in the appropriate support bin file
-//                 // const maybe_feature_info = bins.getSupportPercentageAndCiuIdForIdentifierFromBin(name, symbol_info.support_bin);
-//                 const maybe_feature_info: ?struct { f32, []const u8 } = null;
-//                 if (maybe_feature_info) |feature_info| {
-//                     const percentage, const ciu_id = feature_info;
-//                     return types.HoverInfo{
-//                         .caniuse_id = ciu_id,
-//                         .identifier = name,
-//                         .support_percentage = percentage,
-//                     };
-//                 }
-//             }
-//         }
-
-//         for (injections) |injection_info| {
-//             const query = ts.Query.create(lang, injection_info.ts_query_text, &error_offset) catch |err| {
-//                 log.err("could not create tree-sitter query: {}", .{err});
-//                 return null;
-//             };
-//             defer query.destroy();
-
-//             // injection languages inside this language
-//             cursor.exec(query, root_node);
-//             while (cursor.nextMatch()) |match| {
-//                 const injection_node = match.captures[0].node;
-//                 const injection_code = code[injection_node.startByte()..injection_node.endByte()];
-
-//                 const injection_row = row - injection_node.startPoint().row;
-//                 if (injection_row == 0 and column < injection_node.startPoint().column)
-//                     continue;
-//                 const injection_column = if (injection_row == 0) column - injection_node.startPoint().column else column;
-
-//                 return injection_info.injection_hover_fn(
-//                     injection_code,
-//                     injection_column,
-//                     injection_row,
-//                 );
-//             }
-//         }
-//     }
-//     return null;
-// }
 
 const QUERY_COMMENT = "(comment) @comment"; // this is the same for all 3 TS parsers; HTML, CSS and JS.
 /// Get a list of canipls-ignore ranges in a piece of code
