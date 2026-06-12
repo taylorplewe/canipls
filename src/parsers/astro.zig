@@ -64,7 +64,7 @@ fn parse(
         html.trimComment,
         &.{
             .{
-                .ts_query_text = html.TagsAndAttrsContext.QUERY_TAGS_AND_ATTRS,
+                .ts_query_text = html.TagsAndAttrsContext.QUERY_TAGS_AND_ATTRS_DIAGNOSTICS,
                 .perNodeCallback = html.TagsAndAttrsContext.callback,
             },
         },

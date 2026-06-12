@@ -71,7 +71,7 @@ var identifier_buf: [32]u8 = undefined;
 pub const TagsAndAttrsContext = struct {
     var last_attr_name: ?[]const u8 = null;
     var tag_name: ?[]const u8 = null;
-    pub const QUERY_TAGS_AND_ATTRS =
+    pub const QUERY_TAGS_AND_ATTRS_DIAGNOSTICS =
         \\[
         \\  (start_tag
         \\    (tag_name) @tagname
@@ -92,6 +92,17 @@ pub const TagsAndAttrsContext = struct {
         \\    )*
         \\  )
         \\]
+    ;
+    pub const QUERY_TAGS_AND_ATTRS_HOVER =
+        \\(
+        \\  (tag_name) @tagname
+        \\  (attribute
+        \\    (attribute_name) @attrname
+        \\    (quoted_attribute_value
+        \\      (attribute_value) @attrval
+        \\    )?
+        \\  )*
+        \\)
     ;
 
     pub fn callback(
@@ -166,7 +177,7 @@ pub fn parseHtmlAndReturnDiagnostics(
         trimComment,
         &.{
             .{
-                .ts_query_text = TagsAndAttrsContext.QUERY_TAGS_AND_ATTRS,
+                .ts_query_text = TagsAndAttrsContext.QUERY_TAGS_AND_ATTRS_DIAGNOSTICS,
                 .perNodeCallback = TagsAndAttrsContext.callback,
             },
         },
@@ -218,7 +229,7 @@ pub fn getHoverInfoFromHtmlAtPosition(
         row,
         &.{
             .{
-                .ts_query_text = TagsAndAttrsContext.QUERY_TAGS_AND_ATTRS,
+                .ts_query_text = TagsAndAttrsContext.QUERY_TAGS_AND_ATTRS_HOVER,
                 .perNodeCallback = TagsAndAttrsContext.callback,
             },
         },
