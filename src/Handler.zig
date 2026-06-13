@@ -143,7 +143,7 @@ pub fn @"textDocument/didOpen"(
         params.textDocument.text,
     );
 
-    if (config.config.show_low_support_warnings) {
+    if (config.config.show_low_support_warnings.?) {
         try self.parseCodeAndPublishDiagnosticsForFile(
             temp_allocator,
             params.textDocument.uri,
@@ -164,7 +164,7 @@ pub fn @"textDocument/didChange"(
     if (document_get) |document| {
         document.swapSrc(&self.allocator, new_src);
 
-        if (config.config.show_low_support_warnings) {
+        if (config.config.show_low_support_warnings.?) {
             try self.parseCodeAndPublishDiagnosticsForFile(
                 temp_allocator,
                 params.textDocument.uri,

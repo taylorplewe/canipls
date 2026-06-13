@@ -150,7 +150,7 @@ pub fn getDiagnosticsFromCode(
                                 if (diagnostic.range.start.line == node.startPoint().row and diagnostic.range.start.character == node.startPoint().column)
                                     continue :symbol_stack_loop;
                             }
-                            if (feature_info.support < config.config.support_threshold) {
+                            if (feature_info.support < config.config.support_threshold.?) {
                                 diagnostics.append(allocator, getLspDiagnosticFromTsNode(
                                     allocator,
                                     &node,
