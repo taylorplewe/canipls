@@ -141,9 +141,9 @@ const now = Temporal.Now.instant(); // canipls-ignore
 ```
 
 ## Config
-`canipls` will search the following places for configuration options, in order of precedence:
-1. a file called `.canipls.cfg` in the current project's root directory
-2. a file called `canipls.cfg` in the user's global app config directory
+`canipls` can be configured, and upon startup, will search the following places for configuration options, in order of precedence:
+1. a file called `.canipls.json` in the current project's root directory
+2. a file called `canipls.json` in the user's global app config directory
     - on Windows, this is found at `%HOME%/AppData/Roaming/canipls/`
     - on macOS and Linux, this is found at `~/.config/canipls/`
 3. use the default values (see below table)
@@ -154,11 +154,20 @@ The following configuration options are available:
 | - | - | - | - |
 | `support_threshold` | number | `90.0` | The minimum global browser support threshold, according to caniuse, that features must meet |
 | `show_low_support_warnings` | boolean | `true` | Whether to show warning diagnostics for features that fall below the desired support threshold. (If this is set to `false`, `support_threshold` has no effect.) |
+| `ignored_feature_ids` | string[] | `[]` | List of caniuse feature IDs (without the `mdn-` prefix) which should be ignored when throwing warning diagnostics |
 
-Config files are simply plain text files containing one or more of the above config options, separated by newlines, with key/value pairs separated by a space:
-```
-support_threshold 80.0
-show_low_support_warnings true
+Example:
+```json
+{
+    "support_threshold": 80.0
+    "show_low_support_warnings": true
+    "ignored_feature_ids": [
+        "css_properties_cursor_pointer",
+        "css_properties_cursor_copy",
+        "css_properties_cursor_help",
+        "css_properties_cursor_none"
+    ]
+}
 ```
 
 ---
