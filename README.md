@@ -156,6 +156,19 @@ The following configuration options are available:
 | `show_low_support_warnings` | boolean | `true` | Whether to show warning diagnostics for features that fall below the desired support threshold. (If this is set to `false`, `support_threshold` has no effect.) |
 | `ignored_feature_ids` | string[] | `[]` | List of caniuse feature IDs (without the `mdn-` prefix) which should be ignored when throwing warning diagnostics; may include a trailing `*` wildcard |
 
+<details>
+<summary>Where can I find a feature's caniuse ID?</summary>
+
+Search for the feature you want on caniuse.com, and click the big `#` button to the left of the feature card:
+    
+<img width="391" height="366" alt="image" src="https://github.com/user-attachments/assets/fe30904e-de30-4f83-b565-8c26e61f5ddc" />
+
+The caniuse feature ID is the URL following "`caniuse.com/`", but canipls is only concerned with what follows `mdn-`:
+
+<img width="375" height="43" alt="image" src="https://github.com/user-attachments/assets/7e4faf84-2ab8-4ffd-8807-9d07853128e0" />
+
+</details>
+
 Example:
 ```json
 {
