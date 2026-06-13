@@ -154,18 +154,16 @@ The following configuration options are available:
 | - | - | - | - |
 | `support_threshold` | number | `90.0` | The minimum global browser support threshold, according to caniuse, that features must meet |
 | `show_low_support_warnings` | boolean | `true` | Whether to show warning diagnostics for features that fall below the desired support threshold. (If this is set to `false`, `support_threshold` has no effect.) |
-| `ignored_feature_ids` | string[] | `[]` | List of caniuse feature IDs (without the `mdn-` prefix) which should be ignored when throwing warning diagnostics |
+| `ignored_feature_ids` | string[] | `[]` | List of caniuse feature IDs (without the `mdn-` prefix) which should be ignored when throwing warning diagnostics; may include a trailing `*` wildcard |
 
 Example:
 ```json
 {
-    "support_threshold": 80.0
-    "show_low_support_warnings": true
+    "support_threshold": 80.0,
+    "show_low_support_warnings": true,
     "ignored_feature_ids": [
-        "css_properties_cursor_pointer",
-        "css_properties_cursor_copy",
-        "css_properties_cursor_help",
-        "css_properties_cursor_none"
+        "css_properties_cursor_*",
+        "javascript_builtins_temporal"
     ]
 }
 ```
