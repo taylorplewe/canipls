@@ -154,7 +154,7 @@ pub fn getDiagnosticsFromCode(
 
                                 // is this feature in the config ignore list?
                                 for (config.config.ignored_feature_ids.?) |feature_id| {
-                                    log.info("ignored feature: {s}", .{feature_id});
+                                    if (std.mem.eql(u8, feature_id, feature_info.ciu_id)) continue :symbol_stack_loop;
                                 }
 
                                 diagnostics.append(allocator, getLspDiagnosticFromTsNode(

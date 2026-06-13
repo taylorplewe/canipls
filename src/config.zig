@@ -90,6 +90,7 @@ pub fn applyConfigFileToGlobalConfig(arena_process: std.mem.Allocator, file_byte
         if (val != null) {
             switch (field.type) {
                 ?[][]const u8 => {
+                    // duplicate the memory over from the JSON file into the process' config data structure
                     var feature_ids: std.ArrayList([]const u8) = .empty;
                     for (val.?) |feature_id| {
                         try feature_ids.append(arena_process, try arena_process.dupe(u8, feature_id));
