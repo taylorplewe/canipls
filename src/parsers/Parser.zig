@@ -153,9 +153,7 @@ pub fn getDiagnosticsFromCode(
                                 }
 
                                 // is this feature in the config ignore list?
-                                for (config.config.ignored_feature_ids.?) |feature_id| {
-                                    if (std.mem.eql(u8, feature_id, feature_info.ciu_id)) continue :symbol_stack_loop;
-                                }
+                                if (isCiuIdIgnored(feature_info.ciu_id)) continue :symbol_stack_loop;
 
                                 diagnostics.append(allocator, getLspDiagnosticFromTsNode(
                                     allocator,
@@ -381,4 +379,16 @@ fn getIgnoreSpansFromCode(
     }
 
     return ignored_spans.toOwnedSlice(allocator) catch &.{};
+}
+
+/// Check the config option `ignored_feature_ids` to see if a given feature's caniuse ID is on the ignore list
+fn isCiuIdIgnored(ciu_id: []const u8) bool {
+    for (config.config.ignored_feature_ids.?) |ignored_feature_id| {
+        if (ignored_feature_id[ignored_feature_id.len - 1] == '*') {
+            if (std.mem.eql(u8, ignored_feature_id[0 .. ignored_feature_id.len - 1], ciu_id[0 .. ignored_feature_id.len - 1])) return true;
+        } else {
+            if (std.mem.eql(u8, ignored_feature_id, ciu_id)) return true;
+        }
+    }
+    return false;
 }
