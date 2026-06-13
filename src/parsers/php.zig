@@ -1,0 +1,58 @@
+const std = @import("std");
+const lsp = @import("lsp");
+const ts = @import("tree-sitter");
+
+const types = @import("../types.zig");
+const HoverInfo = types.HoverInfo;
+const Parser = @import("Parser.zig");
+const html = @import("html.zig");
+
+const log = std.log.scoped(.canipls);
+
+extern fn tree_sitter_php() callconv(.c) *ts.Language;
+var lang_php: *ts.Language = undefined;
+
+pub fn phpParser() Parser {
+    return .{
+        .init = init,
+        .deinit = deinit,
+        .parse = parse,
+        .getHoverInfoAtPosition = getHoverInfoAtPosition,
+    };
+}
+
+fn init() void {
+    lang_php = tree_sitter_php();
+}
+fn deinit() void {
+    lang_php.destroy();
+}
+fn parse(
+    allocator: std.mem.Allocator,
+    code: []const u8,
+    start_column: u32,
+    start_row: u32,
+) []const lsp.types.Diagnostic {
+    return html.parseHtmlAndReturnDiagnostics(
+        allocator,
+        code,
+        start_column,
+        start_row,
+        lang_php,
+    );
+}
+
+fn getHoverInfoAtPosition(
+    temp_allocator: std.mem.Allocator,
+    code: []const u8,
+    column: u32,
+    row: u32,
+) ?HoverInfo {
+    return html.getHoverInfoFromHtmlAtPosition(
+        temp_allocator,
+        code,
+        column,
+        row,
+        lang_php,
+    );
+}

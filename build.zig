@@ -12,6 +12,7 @@ pub fn build(b: *std.Build) void {
     const tree_sitter_html = b.dependency("tree_sitter_html", .{ .target = target, .optimize = optimize });
     const tree_sitter_css = b.dependency("tree_sitter_css", .{ .target = target, .optimize = optimize });
     const tree_sitter_javascript = b.dependency("tree_sitter_javascript", .{ .target = target, .optimize = optimize });
+    const tree_sitter_php = b.dependency("tree_sitter_php", .{ .target = target, .optimize = optimize });
     const tree_sitter_svelte = b.dependency("tree_sitter_svelte", .{ .target = target, .optimize = optimize });
     const tree_sitter_astro = b.dependency("tree_sitter_astro", .{ .target = target, .optimize = optimize });
 
@@ -38,6 +39,8 @@ pub fn build(b: *std.Build) void {
     exe_mod.addCSourceFile(.{ .file = tree_sitter_css.path("src/parser.c") });
     exe_mod.addCSourceFile(.{ .file = tree_sitter_javascript.path("src/scanner.c") });
     exe_mod.addCSourceFile(.{ .file = tree_sitter_javascript.path("src/parser.c") });
+    exe_mod.addCSourceFile(.{ .file = tree_sitter_php.path("src/php/scanner.c") });
+    exe_mod.addCSourceFile(.{ .file = tree_sitter_php.path("src/php/parser.c") });
     exe_mod.addCSourceFile(.{ .file = tree_sitter_svelte.path("src/scanner.c") });
     exe_mod.addCSourceFile(.{ .file = tree_sitter_svelte.path("src/parser.c") });
     exe_mod.addCSourceFile(.{ .file = tree_sitter_astro.path("src/scanner.c") });
