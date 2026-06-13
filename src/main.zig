@@ -19,7 +19,7 @@ pub fn main(init: std.process.Init) !void {
     );
     defer handler.deinit();
 
-    config.set(init.io, init.environ_map) catch |err| {
+    config.set(init.arena.allocator(), init.io, init.environ_map) catch |err| {
         log.err("could not set config: {}", .{err});
     };
 

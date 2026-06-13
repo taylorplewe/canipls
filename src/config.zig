@@ -32,28 +32,28 @@ const SetConfigError = error{
 };
 
 /// Set the app-wide config based on defaults, global config file and a project config file, in that order
-pub fn set(io: std.Io, environ_map: *std.process.Environ.Map) !void {
+pub fn set(arena_process: std.mem.Allocator, io: std.Io, environ_map: *std.process.Environ.Map) !void {
     global_config_file: {
-        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-        defer arena.deinit();
+        var arena_temp = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer arena_temp.deinit();
 
         var config_path: []const u8 = undefined;
         if (builtin.os.tag == .windows) {
-            config_path = try arena.allocator().dupe(u8, environ_map.get("APPDATA") orelse return SetConfigError.NoAppDataEnv);
+            config_path = try arena_temp.allocator().dupe(u8, environ_map.get("APPDATA") orelse return SetConfigError.NoAppDataEnv);
         } else {
             // TODO: test this on raspberry pi
             const home_path = environ_map.get("HOME") orelse return SetConfigError.NoHomeEnv;
-            config_path = try std.fs.path.join(arena.allocator(), &.{ home_path, ".config" });
+            config_path = try std.fs.path.join(arena_temp.allocator(), &.{ home_path, ".config" });
         }
-        const canipls_config_path = try std.fs.path.join(arena.allocator(), &.{ config_path, "canipls", CONFIG_FILE_NAME });
+        const canipls_config_path = try std.fs.path.join(arena_temp.allocator(), &.{ config_path, "canipls", CONFIG_FILE_NAME });
 
-        const config_bytes = std.Io.Dir.cwd().readFileAlloc(io, canipls_config_path, arena.allocator(), .unlimited) catch |err| {
+        const config_bytes = std.Io.Dir.cwd().readFileAlloc(io, canipls_config_path, arena_temp.allocator(), .unlimited) catch |err| {
             switch (err) {
                 std.Io.File.OpenError.FileNotFound => break :global_config_file,
                 else => return err,
             }
         };
-        applyConfigFileToGlobalConfig(config_bytes);
+        try applyConfigFileToGlobalConfig(arena_process, config_bytes);
     }
     project_config_file: {
         var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -65,11 +65,10 @@ pub fn set(io: std.Io, environ_map: *std.process.Environ.Map) !void {
                 else => return err,
             }
         };
-        applyConfigFileToGlobalConfig(config_bytes);
+        try applyConfigFileToGlobalConfig(arena_process, config_bytes);
     }
-    log.info("support threshold: {d}", .{config.support_threshold.?});
 }
-pub fn applyConfigFileToGlobalConfig(file_bytes: []const u8) void {
+pub fn applyConfigFileToGlobalConfig(arena_process: std.mem.Allocator, file_bytes: []const u8) !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
@@ -89,7 +88,16 @@ pub fn applyConfigFileToGlobalConfig(file_bytes: []const u8) void {
     inline for (@typeInfo(Config).@"struct".fields) |field| {
         const val = @field(parsed_config, field.name);
         if (val != null) {
-            @field(config, field.name) = val;
+            switch (field.type) {
+                ?[][]const u8 => {
+                    var feature_ids: std.ArrayList([]const u8) = .empty;
+                    for (val.?) |feature_id| {
+                        try feature_ids.append(arena_process, try arena_process.dupe(u8, feature_id));
+                    }
+                    @field(config, field.name) = try feature_ids.toOwnedSlice(arena_process);
+                },
+                else => @field(config, field.name) = val,
+            }
         }
     }
 }
