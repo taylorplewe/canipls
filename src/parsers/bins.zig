@@ -34,6 +34,11 @@ const sizeof_entry_per_section: std.EnumArray(BinSection, usize) = blk: {
     }
     break :blk sizes;
 };
+const maybe_block_size = std.simd.suggestVectorLength(u8);
+const SimdString = if (maybe_block_size) |block_size|
+    @Vector(block_size, u8)
+else
+    @Vector(8, u8);
 const Bin = struct {
     data: []const u8,
     num_features_total: usize,
@@ -41,7 +46,9 @@ const Bin = struct {
     sizeof_section: std.EnumArray(BinSection, usize),
     section_addr: std.EnumArray(BinSection, usize),
 
-    /// Search this bin file from feature index `index_start` (inclusive) to `index_end` (exclusive) for `identifier_buf`; return index of feature if found
+    /// Search this bin file from feature index `index_start` (inclusive) to `index_end` (exclusive) for `identifier_buf`
+    ///
+    /// Returns index of feature if found
     fn searchRangeForSymbol(
         self: *const Bin,
         index_start: usize,
@@ -50,10 +57,24 @@ const Bin = struct {
     ) ?usize {
         for (index_start..index_end) |i| {
             const next_identifier_offset = self.section_addr.get(.Identifier) + (i * sizeof_entry_per_section.get(.Identifier));
-            const name_in_bin = self.data[next_identifier_offset..][0..BIN_FILE_STRING_WIDTH];
 
             // TODO: simd vector search
-            if (std.mem.eql(u8, name_padded, name_in_bin)) return i;
+            if (maybe_block_size) |block_size| {
+                var iteration: usize = 0;
+                while (iteration * block_size < BIN_FILE_STRING_WIDTH) : (iteration += 1) {
+                    const index = iteration * block_size;
+                    const name_searching: SimdString = name_padded[index..block_size].*;
+                    const name_bin: SimdString = self.data[(next_identifier_offset + index)..][0..block_size].*;
+                    const eq = ~(name_searching == name_bin);
+                    const eq_bit_set: std.bit_set.IntegerBitSet(block_size) = .{ .mask = @bitCast(eq) };
+                    if (eq_bit_set.findFirstSet() == null) return null;
+                }
+                return i;
+            } else {
+                const name_in_bin = self.data[next_identifier_offset..][0..BIN_FILE_STRING_WIDTH];
+                if (name_padded.len != name_in_bin.len) unreachable; // optimize away unneeded length checks; we know they are the same
+                if (std.mem.eql(u8, name_padded, name_in_bin)) return i;
+            }
         }
         return null;
     }

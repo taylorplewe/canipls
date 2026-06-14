@@ -40,7 +40,27 @@ Well I'll go ahead with SIMD for now and just isolate that performance improveme
 
 I am going to test both debug and release build performance, before doing SIMD stuff and after, *only surrounding the while cursor next match loop* inside `getDiagnosticsFromCode()`.
 
-### Before
+### Results before
 
-**Results**
 - debug build
+    - 346,614 μs
+    - 248,002 μs
+    - 245,960 μs
+    - 247,190 μs
+    - 242,426 μs
+    - 245,892 μs
+    - 241,750 μs
+    - 277,690 μs
+    - 244,651 μs
+    - 276,866 μs
+- release build
+    - 12,297 μs
+    - 10,605 μs
+    - 10,815 μs
+    - 10,701 μs
+    - 13,272 μs
+    - 10,317 μs
+    - 11,103 μs
+    - 10,480 μs
+    - 10,686 μs
+    - 10,554 μs
