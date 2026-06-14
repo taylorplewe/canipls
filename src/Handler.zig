@@ -152,8 +152,21 @@ pub fn @"textDocument/didOpen"(
     }
 }
 
+var handleDidChangeThread: ?std.Thread = null;
+
 /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didChange
 pub fn @"textDocument/didChange"(
+    self: *Handler,
+    temp_allocator: std.mem.Allocator,
+    params: lsp.types.TextDocument.DidChangeParams,
+) !void {
+    if (handleDidChangeThread) |thread| {
+        // cancel thread
+    }
+    handleDidChangeThread = try std.Thread.spawn(.{}, handleDidChange, .{ self, temp_allocator, params });
+}
+
+pub fn handleDidChange(
     self: *Handler,
     temp_allocator: std.mem.Allocator,
     params: lsp.types.TextDocument.DidChangeParams,
