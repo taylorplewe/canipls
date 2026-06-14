@@ -13,8 +13,6 @@ const log = std.log.scoped(.canipls);
 
 const BIN_FILE_STRING_WIDTH = 32;
 
-pub var debug_io: std.Io = undefined;
-
 init: *const fn () void,
 deinit: *const fn () void,
 parse: *const fn (
@@ -108,7 +106,6 @@ pub fn getDiagnosticsFromCode(
             defer query.destroy();
 
             cursor.exec(query, root_node);
-            const before = std.Io.Timestamp.now(debug_io, .real);
             while (cursor.nextMatch()) |match| {
                 capture_loop: for (match.captures, 0..) |capture, capture_index| {
                     const node = capture.node;
@@ -174,8 +171,6 @@ pub fn getDiagnosticsFromCode(
                     }
                 }
             }
-            const after = std.Io.Timestamp.now(debug_io, .real);
-            log.info("time it took: {d} μs", .{before.durationTo(after).toMicroseconds()});
         }
 
         for (injections) |injection_info| {
