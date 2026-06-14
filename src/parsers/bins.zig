@@ -34,6 +34,9 @@ const sizeof_entry_per_section: std.EnumArray(BinSection, usize) = blk: {
     }
     break :blk sizes;
 };
+const maybe_block_size = std.simd.suggestVectorLength(u8);
+const is_simd_vector_size_big_enough = if (maybe_block_size) |block_size| block_size >= 32 else false;
+const SimdString = @Vector(maybe_block_size orelse 8, u8);
 const Bin = struct {
     data: []const u8,
     num_features_total: usize,
@@ -41,19 +44,31 @@ const Bin = struct {
     sizeof_section: std.EnumArray(BinSection, usize),
     section_addr: std.EnumArray(BinSection, usize),
 
-    /// Search this bin file from feature index `index_start` (inclusive) to `index_end` (exclusive) for `identifier_buf`; return index of feature if found
+    /// Search this bin file from feature index `index_start` (inclusive) to `index_end` (exclusive) for `identifier_buf`
+    ///
+    /// Returns index of feature if found
     fn searchRangeForSymbol(
         self: *const Bin,
         index_start: usize,
         index_end: usize,
         name_padded: []const u8,
     ) ?usize {
-        for (index_start..index_end) |i| {
+        name_loop: for (index_start..index_end) |i| {
             const next_identifier_offset = self.section_addr.get(.Identifier) + (i * sizeof_entry_per_section.get(.Identifier));
-            const name_in_bin = self.data[next_identifier_offset..][0..BIN_FILE_STRING_WIDTH];
 
-            // TODO: simd vector search
-            if (std.mem.eql(u8, name_padded, name_in_bin)) return i;
+            if (is_simd_vector_size_big_enough) {
+                const block_size = maybe_block_size.?;
+                const name_searching: SimdString = name_padded[0..block_size].*;
+                const name_bin: SimdString = self.data[next_identifier_offset..][0..block_size].*;
+                const eq = @as(u32, @bitCast(~(name_searching == name_bin)));
+                if (eq & 0xffffffff != 0) continue :name_loop;
+                return i;
+            } else {
+                // fall back to regular scalar search if SIMD is not supported or if the CPU's SIMD vector size < 32
+                const name_in_bin = self.data[next_identifier_offset..][0..BIN_FILE_STRING_WIDTH];
+                if (name_padded.len != name_in_bin.len) unreachable; // optimize away unneeded length checks; we know they are the same
+                if (std.mem.eql(u8, name_padded, name_in_bin)) return i;
+            }
         }
         return null;
     }
