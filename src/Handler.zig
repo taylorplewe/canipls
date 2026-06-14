@@ -153,6 +153,7 @@ pub fn @"textDocument/didOpen"(
 }
 
 var handleDidChangeThread: ?std.Thread = null;
+var latest_did_change_thread_id: ?std.Thread.Id = null;
 
 /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didChange
 pub fn @"textDocument/didChange"(
@@ -160,17 +161,15 @@ pub fn @"textDocument/didChange"(
     temp_allocator: std.mem.Allocator,
     params: lsp.types.TextDocument.DidChangeParams,
 ) !void {
-    if (handleDidChangeThread) |thread| {
-        // cancel thread
-    }
-    handleDidChangeThread = try std.Thread.spawn(.{}, handleDidChange, .{ self, temp_allocator, params });
-}
+    latest_did_change_thread_id = std.Thread.getCurrentId();
 
-pub fn handleDidChange(
-    self: *Handler,
-    temp_allocator: std.mem.Allocator,
-    params: lsp.types.TextDocument.DidChangeParams,
-) !void {
+    const timeout: std.Io.Timeout = .{ .duration = .{ .raw = .fromMilliseconds(100), .clock = .real } };
+    try timeout.sleep(self.io.*);
+
+    const current_thread_id = std.Thread.getCurrentId();
+    if (current_thread_id != latest_did_change_thread_id) return;
+
+    log.info("running didChange!", .{});
     const new_src = try self.allocator.dupe(u8, params.contentChanges[0].text_document_content_change_whole_document.text);
 
     const document_get = self.files.getPtr(params.textDocument.uri);
