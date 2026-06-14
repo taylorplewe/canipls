@@ -385,7 +385,7 @@ fn getIgnoreSpansFromCode(
 fn isCiuIdIgnored(ciu_id: []const u8) bool {
     for (config.config.ignored_feature_ids.?) |ignored_feature_id| {
         if (ignored_feature_id[ignored_feature_id.len - 1] == '*') {
-            if (std.mem.eql(u8, ignored_feature_id[0 .. ignored_feature_id.len - 1], ciu_id[0 .. ignored_feature_id.len - 1])) return true;
+            if (ciu_id.len >= ignored_feature_id.len - 1 and std.mem.eql(u8, ignored_feature_id[0 .. ignored_feature_id.len - 1], ciu_id[0 .. ignored_feature_id.len - 1])) return true;
         } else {
             if (std.mem.eql(u8, ignored_feature_id, ciu_id)) return true;
         }
