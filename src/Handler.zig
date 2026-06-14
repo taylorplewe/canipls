@@ -152,38 +152,58 @@ pub fn @"textDocument/didOpen"(
     }
 }
 
-var handleDidChangeThread: ?std.Thread = null;
 var latest_did_change_thread_id: ?std.Thread.Id = null;
+const DIDCHANGE_DEBOUNCE_MS = 200;
 
 /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didChange
 pub fn @"textDocument/didChange"(
     self: *Handler,
-    temp_allocator: std.mem.Allocator,
+    _: std.mem.Allocator,
     params: lsp.types.TextDocument.DidChangeParams,
 ) !void {
-    latest_did_change_thread_id = std.Thread.getCurrentId();
-
-    const timeout: std.Io.Timeout = .{ .duration = .{ .raw = .fromMilliseconds(100), .clock = .real } };
-    try timeout.sleep(self.io.*);
-
-    const current_thread_id = std.Thread.getCurrentId();
-    if (current_thread_id != latest_did_change_thread_id) return;
-
-    log.info("running didChange!", .{});
-    const new_src = try self.allocator.dupe(u8, params.contentChanges[0].text_document_content_change_whole_document.text);
-
+    // replace canipls' version of this document's contents
     const document_get = self.files.getPtr(params.textDocument.uri);
     if (document_get) |document| {
-        document.swapSrc(&self.allocator, new_src);
-
-        if (config.config.show_low_support_warnings.?) {
-            try self.parseCodeAndPublishDiagnosticsForFile(
-                temp_allocator,
-                params.textDocument.uri,
-                document,
-            );
-        }
+        try document.swapSrc(&self.allocator, params.contentChanges[0].text_document_content_change_whole_document.text);
+    } else {
+        return;
     }
+
+    if (!config.config.show_low_support_warnings.?) return;
+
+    const uri = try self.allocator.dupe(u8, params.textDocument.uri);
+    const thread = try std.Thread.spawn(.{}, handleDidChange, .{
+        self,
+        self.allocator, // TEMP: does this work with temp_allocator?
+        uri,
+    });
+    thread.detach();
+}
+
+fn handleDidChange(
+    self: *Handler,
+    temp_allocator: std.mem.Allocator,
+    text_document_uri: lsp.types.DocumentUri,
+) void {
+    defer self.allocator.free(text_document_uri);
+    latest_did_change_thread_id = std.Thread.getCurrentId();
+
+    const timeout: std.Io.Timeout = .{ .duration = .{ .raw = .fromMilliseconds(DIDCHANGE_DEBOUNCE_MS), .clock = .real } };
+    timeout.sleep(self.io.*) catch return;
+
+    if (std.Thread.getCurrentId() != latest_did_change_thread_id) return;
+
+    log.info("running didChange!", .{});
+
+    const document = self.files.getPtr(text_document_uri).?; // already confirmed the document exists before creating this thread
+    self.parseCodeAndPublishDiagnosticsForFile(
+        temp_allocator,
+        text_document_uri,
+        document,
+    ) catch |err| {
+        log.err("could not parse code and publish diagnostics on didChange event: {}", .{err});
+        return;
+    };
 }
 
 /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didClose

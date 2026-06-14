@@ -249,6 +249,7 @@ fn getHoverInfoAtPosition(
     };
 }
 fn trimComment(comment_raw: []const u8) []const u8 {
+    if (!std.mem.startsWith(u8, comment_raw, "/*") or !std.mem.endsWith(u8, comment_raw, "*/")) return comment_raw;
     return std.mem.trim(
         u8,
         std.mem.trim(
