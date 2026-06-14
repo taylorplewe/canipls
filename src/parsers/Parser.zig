@@ -13,6 +13,8 @@ const log = std.log.scoped(.canipls);
 
 const BIN_FILE_STRING_WIDTH = 32;
 
+pub var debug_io: std.Io = undefined;
+
 init: *const fn () void,
 deinit: *const fn () void,
 parse: *const fn (
@@ -106,6 +108,7 @@ pub fn getDiagnosticsFromCode(
             defer query.destroy();
 
             cursor.exec(query, root_node);
+            const before = std.Io.Timestamp.now(debug_io, .real);
             while (cursor.nextMatch()) |match| {
                 capture_loop: for (match.captures, 0..) |capture, capture_index| {
                     const node = capture.node;
@@ -171,6 +174,8 @@ pub fn getDiagnosticsFromCode(
                     }
                 }
             }
+            const after = std.Io.Timestamp.now(debug_io, .real);
+            log.info("time it took: {d} μs", .{before.durationTo(after).toMicroseconds()});
         }
 
         for (injections) |injection_info| {
@@ -385,7 +390,7 @@ fn getIgnoreSpansFromCode(
 fn isCiuIdIgnored(ciu_id: []const u8) bool {
     for (config.config.ignored_feature_ids.?) |ignored_feature_id| {
         if (ignored_feature_id[ignored_feature_id.len - 1] == '*') {
-            if (std.mem.eql(u8, ignored_feature_id[0 .. ignored_feature_id.len - 1], ciu_id[0 .. ignored_feature_id.len - 1])) return true;
+            if (ciu_id.len >= ignored_feature_id.len - 1 and std.mem.eql(u8, ignored_feature_id[0 .. ignored_feature_id.len - 1], ciu_id[0 .. ignored_feature_id.len - 1])) return true;
         } else {
             if (std.mem.eql(u8, ignored_feature_id, ciu_id)) return true;
         }

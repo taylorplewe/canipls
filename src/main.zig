@@ -4,6 +4,7 @@ const log = std.log.scoped(.canipls);
 
 const config = @import("config.zig");
 const Handler = @import("Handler.zig");
+const Parser = @import("parsers/Parser.zig"); // TEMP: this is just to inject an io instance for perf timing lol
 const lsp_to_ts = @import("lsp_to_ts.zig");
 const bins = @import("parsers/bins.zig");
 
@@ -11,6 +12,8 @@ pub fn main(init: std.process.Init) !void {
     var read_buf: [2048]u8 = undefined;
     var stdio_transport: lsp.Transport.Stdio = .init(&read_buf, .stdin(), .stdout());
     const transport: *lsp.Transport = &stdio_transport.transport;
+
+    Parser.debug_io = init.io;
 
     var handler: Handler = .init(
         init.gpa,
