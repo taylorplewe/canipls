@@ -12,6 +12,10 @@
             .url = "git+https://github.com/tree-sitter/zig-tree-sitter.git#b55d4977d61330390fc733944da06106ff972660",
             .hash = "tree_sitter-0.26.0-8heIf3CaAQB4SSumoGzq3gLSz2rkvXxcKFyskRWqDGBz",
         },
+        .tree_sitter_lib = .{
+            .url = "git+https://github.com/tree-sitter/tree-sitter#49f502715841769dda1daf0efb8f3159b355902b",
+            .hash = "tree_sitter-0.27.0-Tw2sR0T_CwBKTbcGTJIUVq3tHOQspzkE-3K7hnBf2bvu",
+        },
         .tree_sitter_html = .{
             .url = "git+https://github.com/tree-sitter/tree-sitter-html.git#73a3947324f6efddf9e17c0ea58d454843590cc0",
             .hash = "N-V-__8AAEmOAwDdgRRlet5t1CEdpX1YMCbfhFiIbj_vsBH9",
