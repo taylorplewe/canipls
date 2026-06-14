@@ -126,3 +126,136 @@ if (maybe_block_size) |block_size| {
     - 9,560 μs
 
 Whelp it is an improvement but not a huge improvement. I bet that on systems that only have 16-byte SIMD vector width, and have to do 2 iterations, the speed wouldn't even be better; might actually be worse. I can test this on my raspberry pi which I know has a vector width of 16.
+
+### Improvement
+
+I decided to only allow >= 32 SIMD vector lengths into the SIMD search branch. This removes the whole iteration counter thing.
+
+I also realized I was calculating the equality in a dumb way, just copying and pasting code from that article and changing it a little. All I have to do is a simple AND to see if there's any 1s in the equality vector.
+
+New code:
+```zig
+const maybe_block_size = std.simd.suggestVectorLength(u8);
+const is_simd_vector_size_big_enough = if (maybe_block_size) |block_size| block_size >= 32 else false;
+const SimdString = @Vector(maybe_block_size orelse 8, u8);
+```
+
+and then in the loop:
+
+```zig
+const block_size = maybe_block_size.?;
+const name_searching: SimdString = name_padded[0..block_size].*;
+const name_bin: SimdString = self.data[next_identifier_offset..][0..block_size].*;
+const eq = @as(u32, @bitCast(~(name_searching == name_bin)));
+if (eq & 0xffffffff != 0) continue :name_loop;
+return i;
+```
+
+### Results after v2
+- debug build
+    - 189,562 μs
+    - 189,842 μs
+    - 206,800 μs
+    - 189,813 μs
+    - 234,188 μs
+    - 191,012 μs
+    - 200,164 μs
+    - 187,657 μs
+    - 189,284 μs
+    - 187,750 μs
+- release build
+    - 10,036 μs
+    - 9,651 μs
+    - 10,242 μs
+    - 9,781 μs
+    - 10,438 μs
+    - 10,118 μs
+    - 10,229 μs
+    - 10,161 μs
+    - 10,088 μs
+    - 9,965 μs
+
+Yikes. Definitely a small improvement for debug builds, but not at all for release build? I wonder why that is, kinda disappointing.
+
+Gonna do some godbolt and see what the output machine code looks like.
+
+### Godbolt results
+
+Godbolt full link: https://godbolt.org/#g:!((g:!((g:!((h:codeEditor,i:(filename:'1',fontScale:16,fontUsePx:'0',j:1,lang:zig,selection:(endColumn:2,endLineNumber:15,positionColumn:2,positionLineNumber:15,selectionStartColumn:2,selectionStartLineNumber:15,startColumn:2,startLineNumber:15),source:'const+SimdString+%3D+@Vector(32,+u8)%3B%0A%0Aexport+fn+findInStr(%0A++++haystack_ptr:+%5B*%5Du8,%0A++++needle_ptr:+%5B*%5Du8,%0A)+bool+%7B%0A++++const+haystack:+%5B%5Dconst+u8+%3D+haystack_ptr%5B0..32%5D%3B%0A++++const+needle:+%5B%5Dconst+u8+%3D+needle_ptr%5B0..32%5D%3B%0A%0A++++const+haystack_vec:+SimdString+%3D+haystack%5B0..32%5D.*%3B%0A++++const+needle_vec:+SimdString+%3D+needle%5B0..32%5D.*%3B%0A++++const+eq+%3D+@as(u32,+@bitCast(~(haystack_vec+%3D%3D+needle_vec)))%3B%0A++++if+(eq+%26+0xffffffff+!!%3D+0)+return+false%3B%0A++++return+true%3B%0A%7D'),l:'5',n:'0',o:'Zig+source+%231',t:'0')),k:49.725315895112686,l:'4',n:'0',o:'',s:0,t:'0'),(g:!((h:compiler,i:(compiler:z0160,filters:(b:'0',binary:'1',binaryObject:'1',commentOnly:'0',debugCalls:'1',demangle:'0',directives:'0',execute:'0',intel:'0',libraryCode:'0',trim:'1',verboseDemangling:'0'),flagsViewOpen:'1',fontScale:14,fontUsePx:'0',j:1,lang:zig,libs:!(),options:'-O+ReleaseFast',overrides:!(),selection:(endColumn:1,endLineNumber:1,positionColumn:1,positionLineNumber:1,selectionStartColumn:1,selectionStartLineNumber:1,startColumn:1,startLineNumber:1),source:1),l:'5',n:'0',o:'+zig+0.16.0+(Editor+%231)',t:'0')),k:50.27468410488733,l:'4',m:100,n:'0',o:'',s:0,t:'0')),l:'2',n:'0',o:'',t:'0')),version:4
+
+Input code:
+```zig
+const SimdString = @Vector(32, u8);
+export fn findInStr(
+    haystack_ptr: [*]u8,
+    needle_ptr: [*]u8,
+) bool {
+    const haystack: []const u8 = haystack_ptr[0..32];
+    const needle: []const u8 = needle_ptr[0..32];
+
+    const haystack_vec: SimdString = haystack[0..32].*;
+    const needle_vec: SimdString = needle[0..32].*;
+    const eq = @as(u32, @bitCast(~(haystack_vec == needle_vec)));
+    if (eq & 0xffffffff != 0) return false;
+    return true;
+}
+```
+
+Output machine code:
+```assembly
+example.findInStr:
+    push    rbp
+    mov     rbp, rsp
+    vmovdqu ymm0, ymmword ptr [rdi]
+    vpxor   ymm0, ymm0, ymmword ptr [rsi]
+    vptest  ymm0, ymm0
+    sete    al
+    pop     rbp
+    vzeroupper
+    ret
+```
+
+Dang. Looks pretty good. I was gonna try handwriting some SIMD assembly, dynamically linking to the zig program, calling into the foreign function using a calling convention, all that, but I mean...no point if this is what the compiler outputs. I was probably just gonna hand-write that.
+
+vs. the "scalar" search (you'll see why the quotes are there:) https://godbolt.org/#g:!((g:!((g:!((h:codeEditor,i:(filename:'1',fontScale:16,fontUsePx:'0',j:1,lang:zig,selection:(endColumn:2,endLineNumber:11,positionColumn:1,positionLineNumber:1,selectionStartColumn:2,selectionStartLineNumber:11,startColumn:1,startLineNumber:1),source:'const+std+%3D+@import(%22std%22)%3B%0Aexport+fn+findInStr(%0A++++haystack_ptr:+%5B*%5Du8,%0A++++needle_ptr:+%5B*%5Du8,%0A)+bool+%7B%0A++++const+haystack:+%5B%5Dconst+u8+%3D+haystack_ptr%5B0..32%5D%3B%0A++++const+needle:+%5B%5Dconst+u8+%3D+needle_ptr%5B0..32%5D%3B%0A%0A++++if+(haystack.len+!!%3D+needle.len)+unreachable%3B+//+optimize+away+unneeded+length+checks%3B+we+know+they+are+the+same%0A++++return+std.mem.eql(u8,+haystack,+needle)%3B%0A%7D'),l:'5',n:'0',o:'Zig+source+%231',t:'0')),k:49.81687726340846,l:'4',n:'0',o:'',s:0,t:'0'),(g:!((h:compiler,i:(compiler:z0160,filters:(b:'0',binary:'1',binaryObject:'1',commentOnly:'0',debugCalls:'1',demangle:'0',directives:'0',execute:'0',intel:'0',libraryCode:'0',trim:'1',verboseDemangling:'0'),flagsViewOpen:'1',fontScale:14,fontUsePx:'0',j:1,lang:zig,libs:!(),options:'-O+ReleaseFast',overrides:!(),selection:(endColumn:1,endLineNumber:1,positionColumn:1,positionLineNumber:1,selectionStartColumn:1,selectionStartLineNumber:1,startColumn:1,startLineNumber:1),source:1),l:'5',n:'0',o:'+zig+0.16.0+(Editor+%231)',t:'0')),k:50.18312273659156,l:'4',m:100,n:'0',o:'',s:0,t:'0')),l:'2',n:'0',o:'',t:'0')),version:4
+
+Input code:
+```zig
+const std = @import("std");
+export fn findInStr(
+    haystack_ptr: [*]u8,
+    needle_ptr: [*]u8,
+) bool {
+    const haystack: []const u8 = haystack_ptr[0..32];
+    const needle: []const u8 = needle_ptr[0..32];
+
+    if (haystack.len != needle.len) unreachable; // optimize away unneeded length checks; we know they are the same
+    return std.mem.eql(u8, haystack, needle);
+}
+```
+
+Output machine code:
+```assembly
+example.findInStr:
+    push    rbp
+    mov     rbp, rsp
+    cmp     rdi, rsi
+    je      .LBB0_1
+    vmovdqu xmm0, xmmword ptr [rdi]
+    vmovdqu xmm1, xmmword ptr [rdi + 16]
+    vpxor   xmm0, xmm0, xmmword ptr [rsi]
+    vpxor   xmm1, xmm1, xmmword ptr [rsi + 16]
+    vpor    xmm0, xmm0, xmm1
+    vptest  xmm0, xmm0
+    sete    al
+    pop     rbp
+    ret
+.LBB0_1:
+    mov     al, 1
+    pop     rbp
+    ret
+```
+
+Lmao. Moral of the story: LLVM is smart. I guess you don't even need to be that smart given the setup I gave it. I basically gave it a layup.
+
+So basically, my simd version is a little faster because it uses 32-byte vectors instead of 2 16-byte vectors. Makes sense why it's not a huge improvement.

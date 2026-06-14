@@ -60,9 +60,8 @@ const Bin = struct {
                 const block_size = maybe_block_size.?;
                 const name_searching: SimdString = name_padded[0..block_size].*;
                 const name_bin: SimdString = self.data[next_identifier_offset..][0..block_size].*;
-                const eq = ~(name_searching == name_bin);
-                const eq_bit_set: std.bit_set.IntegerBitSet(block_size) = .{ .mask = @bitCast(eq) };
-                if (eq_bit_set.findFirstSet() != null) continue :name_loop;
+                const eq = @as(u32, @bitCast(~(name_searching == name_bin)));
+                if (eq & 0xffffffff != 0) continue :name_loop;
                 return i;
             } else {
                 // fall back to regular scalar search if SIMD is not supported or if the CPU's SIMD vector size < 32
