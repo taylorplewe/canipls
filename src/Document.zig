@@ -13,7 +13,7 @@ pub fn swapSrc(
     self: *Document,
     allocator: *const std.mem.Allocator,
     new_src: []const u8,
-) void {
+) !void {
     allocator.free(self.src);
-    self.src = new_src;
+    self.src = try allocator.dupe(u8, new_src);
 }

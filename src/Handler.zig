@@ -13,6 +13,7 @@ allocator: std.mem.Allocator,
 io: *const std.Io,
 transport: *lsp.Transport,
 files: std.StringHashMap(Document),
+files_mu: std.Io.Mutex,
 
 // helper functions
 pub fn init(
@@ -25,9 +26,14 @@ pub fn init(
         .io = io,
         .transport = transport,
         .files = .init(allocator),
+        .files_mu = .init,
     };
 }
 pub fn deinit(self: *Handler) void {
+    // acquire the mutex
+    self.files_mu.lockUncancelable(self.io.*);
+    defer self.files_mu.unlock(self.io.*);
+
     var uri_it = self.files.keyIterator();
     while (uri_it.next()) |uri| {
         self.removeDocument(uri.*);
@@ -37,32 +43,37 @@ pub fn deinit(self: *Handler) void {
 
 fn addDocument(
     self: *Handler,
-    document_uri: []const u8,
-    document_lang_kind: lsp.types.TextDocument.LanguageKind,
-    document_text: []const u8,
+    uri: []const u8,
+    lang_kind: lsp.types.TextDocument.LanguageKind,
+    content: []const u8,
 ) !*const Document {
-    const owned_document_text = try self.allocator.dupe(u8, document_text);
-    const owned_document_uri = try self.allocator.dupe(u8, document_uri);
+    const owned_document_text = try self.allocator.dupe(u8, content);
+    const owned_document_uri = try self.allocator.dupe(u8, uri);
 
     const document: Document = .{
         .src = owned_document_text,
         .language = lang: {
-            switch (document_lang_kind) {
+            switch (lang_kind) {
                 .custom_value => |value| {
                     break :lang .{ .custom_value = try self.allocator.dupe(u8, value) };
                 },
-                else => break :lang document_lang_kind,
+                else => break :lang lang_kind,
             }
         },
     };
 
     // remove the file from the hash map if it exists
+    self.files_mu.lockUncancelable(self.io.*);
     _ = self.files.remove(owned_document_uri);
     try self.files.put(owned_document_uri, document);
+    self.files_mu.unlock(self.io.*);
 
     return self.files.getPtr(owned_document_uri).?;
 }
 fn removeDocument(self: *Handler, document_uri: []const u8) void {
+    self.files_mu.lockUncancelable(self.io.*);
+    defer self.files_mu.unlock(self.io.*);
+
     const document_get = self.files.get(document_uri);
     if (document_get) |document| {
         switch (document.language) {
@@ -90,11 +101,13 @@ fn parseCodeAndPublishDiagnosticsForFile(
     file_uri: []const u8,
     document: *const Document,
 ) !void {
+    self.files_mu.lockUncancelable(self.io.*);
     const diagnostics = lsp_to_ts.parseCodeAndGetDiagnostics(
         temp_allocator,
         document.language,
         document.src,
     );
+    self.files_mu.unlock(self.io.*);
 
     const publish_diagnostics_params: lsp.types.publish_diagnostics.Params = .{
         .uri = file_uri,
@@ -152,26 +165,64 @@ pub fn @"textDocument/didOpen"(
     }
 }
 
+var latest_did_change_thread_id: ?std.Thread.Id = null;
+const DIDCHANGE_DEBOUNCE_MS = 200;
+
 /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didChange
 pub fn @"textDocument/didChange"(
     self: *Handler,
-    temp_allocator: std.mem.Allocator,
+    _: std.mem.Allocator,
     params: lsp.types.TextDocument.DidChangeParams,
 ) !void {
-    const new_src = try self.allocator.dupe(u8, params.contentChanges[0].text_document_content_change_whole_document.text);
-
+    // replace canipls' version of this document's contents
+    self.files_mu.lockUncancelable(self.io.*);
     const document_get = self.files.getPtr(params.textDocument.uri);
     if (document_get) |document| {
-        document.swapSrc(&self.allocator, new_src);
-
-        if (config.config.show_low_support_warnings.?) {
-            try self.parseCodeAndPublishDiagnosticsForFile(
-                temp_allocator,
-                params.textDocument.uri,
-                document,
-            );
-        }
+        try document.swapSrc(&self.allocator, params.contentChanges[0].text_document_content_change_whole_document.text);
+    } else {
+        return;
     }
+    self.files_mu.unlock(self.io.*);
+
+    if (!config.config.show_low_support_warnings.?) return;
+
+    const uri = try self.allocator.dupe(u8, params.textDocument.uri);
+    const thread = try std.Thread.spawn(
+        .{},
+        handleDidChange,
+        .{
+            self,
+            uri,
+        },
+    );
+    thread.detach();
+}
+
+fn handleDidChange(
+    self: *Handler,
+    text_document_uri: lsp.types.DocumentUri,
+) void {
+    defer self.allocator.free(text_document_uri);
+
+    // debounce
+    latest_did_change_thread_id = std.Thread.getCurrentId();
+    const timeout: std.Io.Timeout = .{ .duration = .{ .raw = .fromMilliseconds(DIDCHANGE_DEBOUNCE_MS), .clock = .real } };
+    timeout.sleep(self.io.*) catch return;
+    if (std.Thread.getCurrentId() != latest_did_change_thread_id) return;
+
+    // I need an arena because the parse code function does not free any memory
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    const document = self.files.getPtr(text_document_uri).?; // already confirmed the document exists before creating this thread
+    self.parseCodeAndPublishDiagnosticsForFile(
+        arena.allocator(),
+        text_document_uri,
+        document,
+    ) catch |err| {
+        log.err("could not parse code and publish diagnostics on didChange event: {}", .{err});
+        return;
+    };
 }
 
 /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didClose
@@ -188,6 +239,9 @@ pub fn @"textDocument/hover"(
     temp_allocator: std.mem.Allocator,
     params: lsp.types.Hover.Params,
 ) !?lsp.types.Hover {
+    self.files_mu.lockUncancelable(self.io.*);
+    defer self.files_mu.unlock(self.io.*);
+
     const document_get = self.files.getPtr(params.textDocument.uri);
     if (document_get) |document|
         return lsp_to_ts.getHoverDocAtPosition(
