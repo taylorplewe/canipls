@@ -192,7 +192,7 @@ pub fn init(server_allocator: std.mem.Allocator, io: std.Io, environ_map: *std.p
                 log.info("fetch error phrase: {s}", .{phrase});
             }
             // TODO: calculate just how out of date the data is; either quit the whole program if it's like > 2 weeks, otherwise explicitly say how out of date it is
-            log.warn("canipls will continue to function on existing data, which may be at least a day out of date.", .{});
+            log.warn("canipls will continue to function on existing data, which may be out of date.", .{});
             break :fetch_new_tarball_if_out_of_date;
         }
     }
@@ -317,4 +317,19 @@ pub fn getSymbolSupportInfoFromBin(symbol_stack: []const BinSearchSymbolInfo) ?B
     }
 
     return null;
+}
+
+test "Fetch canipls bin tarballs from server" {
+    const allocator = std.testing.allocator;
+
+    const tmp_dir = std.testing.tmpDir(.{});
+    const tmp_dir_path = try tmp_dir.dir.realPathFileAlloc(std.testing.io, ".", allocator);
+    defer {
+        allocator.free(tmp_dir_path);
+    }
+
+    std.debug.print("hello! temp dir: {s}", .{tmp_dir_path});
+
+    var environ_map: std.process.Environ.Map = .init(allocator);
+    defer environ_map.deinit();
 }
