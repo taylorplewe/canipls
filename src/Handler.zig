@@ -212,6 +212,7 @@ fn handleDidChange(
 
     log.info("running didChange!", .{});
 
+    // I need an arena because the parse code function does not free any memory
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
