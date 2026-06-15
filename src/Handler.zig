@@ -203,14 +203,12 @@ fn handleDidChange(
     text_document_uri: lsp.types.DocumentUri,
 ) void {
     defer self.allocator.free(text_document_uri);
-    latest_did_change_thread_id = std.Thread.getCurrentId();
 
+    // debounce
+    latest_did_change_thread_id = std.Thread.getCurrentId();
     const timeout: std.Io.Timeout = .{ .duration = .{ .raw = .fromMilliseconds(DIDCHANGE_DEBOUNCE_MS), .clock = .real } };
     timeout.sleep(self.io.*) catch return;
-
     if (std.Thread.getCurrentId() != latest_did_change_thread_id) return;
-
-    log.info("running didChange!", .{});
 
     // I need an arena because the parse code function does not free any memory
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
