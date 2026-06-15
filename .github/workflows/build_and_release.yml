@@ -26,11 +26,11 @@ jobs:
             - uses: mlugg/setup-zig@v2
               with:
                   version: 0.16.0
-            - run: zig build -Doptimize=ReleaseFast -Dtarget=${{ matrix.target }}
+            - run: cd server && zig build -Doptimize=ReleaseFast -Dtarget=${{ matrix.target }}
             - if: endsWith(matrix.target, 'windows')
-              run: zip canipls-${{ inputs.tag }}-${{ matrix.target }}.zip -j zig-out/bin/canipls.exe
+              run: zip canipls-${{ inputs.tag }}-${{ matrix.target }}.zip -j server/zig-out/bin/canipls.exe
             - if: ${{ ! endsWith(matrix.target, 'windows') }}
-              run: tar -czf canipls-${{ inputs.tag }}-${{ matrix.target }}.tar.gz -C zig-out/bin canipls
+              run: tar -czf canipls-${{ inputs.tag }}-${{ matrix.target }}.tar.gz -C server/zig-out/bin canipls
             - uses: actions/upload-artifact@v4
               with:
                   name: artifact-${{ matrix.target }}
