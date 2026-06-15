@@ -125,7 +125,7 @@ pub fn init(server_allocator: std.mem.Allocator, io: std.Io, environ_map: *std.p
     const canipls_bins_dir = try std.Io.Dir.cwd().createDirPathOpen(io, canipls_bins_path, .{ .open_options = .{ .iterate = true } });
     defer canipls_bins_dir.close(io);
 
-    // calculate the last 12:30 or 1:30 AM MDT?
+    // calculate the last 12:30 or 1:30 AM MDT
     // NOTE: I'm not taking into account DST, just doing 7:30 AM UTC--translating to either 12:30 AM or 1:30 AM MDT.
     // This time isn't terribly important, but will be *roughly* soon after the data on my server updates (midnight MDT).
     const now = std.Io.Timestamp.now(io, .real);
@@ -145,25 +145,15 @@ pub fn init(server_allocator: std.mem.Allocator, io: std.Io, environ_map: *std.p
             if (last_modification_time_ms < oldest_timestamp_ms) oldest_timestamp_ms = last_modification_time_ms;
             if (getBinKindFromPath(entry.name)) |kind| checked_files.put(kind, true);
         }
+
+        // compare `checked_files`' entries to those of `bin_kind_to_file_path_map`
         var are_all_files_present = true;
         var bin_kind_map = bin_kind_to_file_path_map.iterator();
         while (bin_kind_map.next()) |entry| {
-            if (checked_files.get(entry.key)) |checked_file| {
-                if (checked_file) {
-                    are_all_files_present = false;
-                    break;
-                }
-            } else {
+            if (checked_files.get(entry.key) == null) {
                 are_all_files_present = false;
                 break;
             }
-        }
-
-        log.info("all files here!", .{});
-
-        var checked_files_it = checked_files.iterator();
-        while (checked_files_it.next()) |entry| {
-            if (entry.value.* == false) are_all_files_present = false;
         }
 
         // don't need to fetch new tarball?
