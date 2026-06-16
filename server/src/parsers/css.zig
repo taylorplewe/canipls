@@ -102,7 +102,7 @@ const SelectorsContext = struct {
         \\          (tag_name) @tagname
         \\          (universal_selector) @star
         \\        ]
-        \\      )
+        \\      )?
         \\    )
         \\  )
         \\  (block
