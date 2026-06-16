@@ -97,7 +97,7 @@ fn getBinKindFromPath(path_to_check: []const u8) ?types.TsNodeKind {
         if (std.mem.eql(u8, path_to_check, entry.value.*)) return entry.key;
     return null;
 }
-pub var bin_map: std.EnumMap(types.TsNodeKind, Bin) = .init(.{});
+var bin_map: std.EnumMap(types.TsNodeKind, Bin) = .init(.{});
 
 const InitBinsError = error{
     NoLocalAppDataEnv,
@@ -130,8 +130,13 @@ pub fn init(server_allocator: std.mem.Allocator, io: std.Io, environ_map: *std.p
     // This time isn't terribly important, but will be *roughly* soon after the data on my server updates (midnight MDT).
     const now = std.Io.Timestamp.now(io, .real);
     const now_ms = now.toMilliseconds();
-    const last_midnight_utc_ms = now_ms - (@mod(now_ms, std.time.ms_per_day));
-    const last_seven_thirty_am_utc_ms = last_midnight_utc_ms + (std.time.ms_per_hour * 7) + (std.time.ms_per_min * 30);
+    const ms_since_last_midnight: i64 = @mod(now_ms, std.time.ms_per_day);
+    const last_midnight_utc_ms = now_ms - ms_since_last_midnight;
+    const ms_to_seven_thirty_am: i64 = (std.time.ms_per_hour * 7) + (std.time.ms_per_min * 30);
+    const last_seven_thirty_am_utc_ms = if (ms_since_last_midnight >= ms_to_seven_thirty_am)
+        last_midnight_utc_ms + ms_to_seven_thirty_am
+    else
+        (last_midnight_utc_ms - std.time.ms_per_day) + ms_to_seven_thirty_am;
 
     // stat any file inside that dir to see when we last fetched
     fetch_new_tarball_if_out_of_date: {
@@ -335,6 +340,8 @@ pub fn getSymbolSupportInfoFromBin(symbol_stack: []const BinSearchSymbolInfo) ?B
 }
 
 test "All bin files are successfully fetched from the server" {
+    // arrange
+
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
@@ -357,7 +364,11 @@ test "All bin files are successfully fetched from the server" {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
+    // act
+
     try init(arena.allocator(), io, &environ_map);
+
+    // assert
 
     const canipls_bins_path = try std.fs.path.join(allocator, &.{ "canipls", "bins" });
     defer allocator.free(canipls_bins_path);

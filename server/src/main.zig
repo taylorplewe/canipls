@@ -47,5 +47,7 @@ pub fn main(init: std.process.Init) !void {
 }
 
 test {
+    _ = bins; // build the `bin_map` before any other tests
+
     std.testing.refAllDecls(@This());
 }
