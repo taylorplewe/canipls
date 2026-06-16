@@ -264,3 +264,13 @@ fn trimComment(comment_raw: []const u8) []const u8 {
         " \t",
     );
 }
+
+test "CSS selectors" {
+    const code =
+        \\::scroll-button(*) {
+        \\    color: white;
+        \\}
+        \\::scroll-button(right) {
+        \\}
+    ;
+}

@@ -47,6 +47,8 @@ pub fn main(init: std.process.Init) !void {
 }
 
 test {
+    config.config.support_threshold = 99.0;
+
     _ = bins; // build the `bin_map` before any other tests
 
     std.testing.refAllDecls(@This());
