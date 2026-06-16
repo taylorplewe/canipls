@@ -102,7 +102,7 @@ const SelectorsContext = struct {
         \\          (tag_name) @tagname
         \\          (universal_selector) @star
         \\        ]
-        \\      )
+        \\      )?
         \\    )
         \\  )
         \\  (block
@@ -131,6 +131,8 @@ const SelectorsContext = struct {
                 }),
             });
         }
+
+        std.debug.print("ayyyy ya got here! selector name: {s} my name: {s}\n", .{ selector_name.?, name });
 
         const node_kind = node_kind_str_to_enum.get(node.kind()) orelse return &.{};
         return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
@@ -188,6 +190,7 @@ fn parse(
     start_column: u32,
     start_row: u32,
 ) []const lsp.types.Diagnostic {
+    std.debug.print("first\n", .{});
     return Parser.getDiagnosticsFromCode(
         allocator,
         lang_css,
@@ -201,12 +204,12 @@ fn parse(
                 .perNodeCallback = AtRulesContext.callback,
             },
             .{
-                .ts_query_text = PropertiesContext.QUERY,
-                .perNodeCallback = PropertiesContext.callback,
-            },
-            .{
                 .ts_query_text = SelectorsContext.QUERY,
                 .perNodeCallback = SelectorsContext.callback,
+            },
+            .{
+                .ts_query_text = PropertiesContext.QUERY,
+                .perNodeCallback = PropertiesContext.callback,
             },
         },
         &.{},
@@ -234,12 +237,12 @@ fn getHoverInfoAtPosition(
                 .perNodeCallback = AtRulesContext.callback,
             },
             .{
-                .ts_query_text = PropertiesContext.QUERY,
-                .perNodeCallback = PropertiesContext.callback,
-            },
-            .{
                 .ts_query_text = SelectorsContext.QUERY,
                 .perNodeCallback = SelectorsContext.callback,
+            },
+            .{
+                .ts_query_text = PropertiesContext.QUERY,
+                .perNodeCallback = PropertiesContext.callback,
             },
         },
         &.{},
@@ -272,5 +275,13 @@ test "CSS selectors" {
         \\}
         \\::scroll-button(right) {
         \\}
+        \\
     ;
+
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    const diagnostics = parse(arena.allocator(), code, 0, 0);
+
+    try std.testing.expectEqual(5, diagnostics.len);
 }

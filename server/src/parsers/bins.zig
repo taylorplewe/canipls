@@ -97,7 +97,7 @@ fn getBinKindFromPath(path_to_check: []const u8) ?types.TsNodeKind {
         if (std.mem.eql(u8, path_to_check, entry.value.*)) return entry.key;
     return null;
 }
-var bin_map: std.EnumMap(types.TsNodeKind, Bin) = .init(.{});
+pub var bin_map: std.EnumMap(types.TsNodeKind, Bin) = .init(.{});
 
 const InitBinsError = error{
     NoLocalAppDataEnv,
@@ -377,4 +377,9 @@ test "All bin files are successfully fetched from the server" {
     const unneeded_timestamp = try checkAllBinFilesPresentAndGetOldestTimestamp(io, &canipls_bins_dir, 0);
 
     try std.testing.expect(unneeded_timestamp != null);
+
+    var bin_kind_map = bin_kind_to_file_path_map.iterator();
+    while (bin_kind_map.next()) |entry| {
+        try std.testing.expect(bin_map.get(entry.key) != null);
+    }
 }
