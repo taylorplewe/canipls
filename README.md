@@ -21,7 +21,27 @@ Supported file types:
 - Astro
 
 > [!IMPORTANT]
-> While global support percentages in canipls rarely match 1:1 those of caniuse's, _they are never more than 1% off_, and rarely more than about 0.1% off. canipls data is refreshed once a day, but caniuse.com does not divulge all of its data sources.
+> While global support percentages from canipls rarely match 1:1 those of caniuse.com's, _they are never more than ~1% off_, and rarely more than about 0.1% off. canipls data is refreshed once a day, but caniuse.com does not divulge all of its data sources.
+
+<details>
+<summary>A note on JavaScript features and how canipls works</summary>
+
+canipls works by using [Tree-sitter](https://tree-sitter.github.io/tree-sitter/) parsers to make sense of input code; *it only knows basic syntactical structure*, nothing else.
+
+What this means is that, unfotunately, canipls is not smart enough to know that *type* JavaScript identifiers are, it just knows they're identifiers.
+
+For instance, given the following code:
+```typescript
+const myFriends = ["John", "Mikey"];
+myFriends.push("Steve");
+```
+canipls does not know that `myFriends` is an Array; just an identifier. As such, hovering over `.push()` won't show any hover documentation, and using a low-support Array feature on `myFriends` won't show any warnings from canipls.
+
+A workaround is that it *will* provide those features for methods by typing `<parent class>.prototype.<method or property>`:
+```typescript
+Map.prototype.getOrInsert // "This method only has 75.19% global support on caniuse.com"
+```
+</details>
 
 ## Usage
 Follow the instructions for getting canipls up and running in your editor:
@@ -182,7 +202,7 @@ Example:
 ```
 
 ---
-If you come across any strange or incorrect behavior, please let me know at tplewe@outlook.com.
+If you come across any strange or incorrect behavior, please don't hesitate to open an issue or pull request.
 
 > [!NOTE]
-> This project is researched, designed, and written completely by hand. Among other reasons, **quality is a higher priority than quantity for this project.** Pull requests that contain AI-generated content of any kind will be rejected.
+> This project is researched, designed, and written completely by hand. Among other reasons, **quality is a higher priority than quantity.** Pull requests that contain AI-generated content of any kind will be rejected.
