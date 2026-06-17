@@ -81,6 +81,7 @@ pub const InjectionParseInfo = struct {
         code_offset_column: u32,
         code_offset_row: u32,
     ) []const lsp.types.Diagnostic,
+    injection_code_capture_index: usize = 0,
 };
 pub const InjectionHoverInfo = struct {
     ts_query_text: []const u8,
@@ -90,4 +91,5 @@ pub const InjectionHoverInfo = struct {
         relative_column: u32,
         relative_row: u32,
     ) ?HoverInfo,
+    injection_code_capture_index: usize = 0,
 };

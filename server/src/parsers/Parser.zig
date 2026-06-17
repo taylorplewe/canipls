@@ -194,7 +194,7 @@ pub fn getDiagnosticsFromCode(
             // injection languages inside this language
             cursor.exec(inj_query, root_node);
             while (cursor.nextMatch()) |match| {
-                const injection_node = match.captures[0].node;
+                const injection_node = match.captures[injection_info.injection_code_capture_index].node;
                 const injection_code = code[injection_node.startByte()..injection_node.endByte()];
 
                 const injection_diagnostics = injection_info.injectionParseFn(
@@ -294,7 +294,7 @@ pub fn getHoverInfoFromCodeAtPosition(
             // injection languages inside this language
             cursor.exec(inj_query, root_node);
             while (cursor.nextMatch()) |match| {
-                const injection_node = match.captures[0].node;
+                const injection_node = match.captures[injection_info.injection_code_capture_index].node;
                 const injection_code = code[injection_node.startByte()..injection_node.endByte()];
 
                 const injection_row = row - injection_node.startPoint().row;

@@ -128,6 +128,15 @@ pub const TagsAndAttrsContext = struct {
 
 const QUERY_STYLE_BLOCKS = "(style_element (raw_text) @css)";
 const QUERY_SCRIPT_BLOCKS = "(script_element (raw_text) @js)";
+const QUERY_STYLE_ATTRS =
+    \\(
+    \\  (attribute_name) @attrname
+    \\  (quoted_attribute_value
+    \\    (attribute_value) @css
+    \\  )
+    \\  (#eq? @attrname "style")
+    \\)
+;
 
 pub fn parseHtmlAndReturnDiagnostics(
     allocator: std.mem.Allocator,
@@ -144,6 +153,11 @@ pub fn parseHtmlAndReturnDiagnostics(
         .{
             .injectionParseFn = css.CssParser().parse,
             .ts_query_text = QUERY_STYLE_BLOCKS,
+        },
+        .{
+            .injectionParseFn = css.CssParser().parse,
+            .ts_query_text = QUERY_STYLE_ATTRS,
+            .injection_code_capture_index = 1,
         },
     };
 
@@ -194,6 +208,11 @@ pub fn getHoverInfoFromHtmlAtPosition(
         .{
             .injectionHoverFn = css.CssParser().getHoverInfoAtPosition,
             .ts_query_text = QUERY_STYLE_BLOCKS,
+        },
+        .{
+            .injectionHoverFn = css.CssParser().getHoverInfoAtPosition,
+            .ts_query_text = QUERY_STYLE_ATTRS,
+            .injection_code_capture_index = 1,
         },
     };
 

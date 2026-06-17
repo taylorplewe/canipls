@@ -154,11 +154,11 @@ test {
         var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
         defer arena.deinit();
         const code =
-            \\<textarea contenteditable="plaintext-only">
+            \\<textarea contenteditable="plaintext-only" style="cursor: pointer;">
             \\<button commandfor="someid" command="request-close">hello</button>
         ;
         const diagnostics = html.HtmlParser().parse(arena.allocator(), code, 0, 0);
-        try std.testing.expectEqual(7, diagnostics.len);
+        try std.testing.expectEqual(10, diagnostics.len);
         try std.testing.expectEqual(0, diagnostics[0].range.start.line);
         try std.testing.expectEqual(1, diagnostics[0].range.start.character);
         try std.testing.expectEqual(9, diagnostics[0].range.end.character);
