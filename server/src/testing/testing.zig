@@ -4,7 +4,7 @@
 
 const std = @import("std");
 
-pub var tmp_dir: std.testing.TmpDir = undefined;
+pub var tmp_dir: *std.testing.TmpDir = undefined;
 
 var canipls_bins_dir: ?std.Io.Dir = undefined;
 

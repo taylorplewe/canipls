@@ -4,6 +4,7 @@ const build_options = @import("build_options");
 
 const utils = @import("../utils.zig");
 const types = @import("../types.zig");
+const testing = @import("../testing/testing.zig");
 
 const log = std.log.scoped(.canipls);
 
@@ -83,7 +84,7 @@ const Bin = struct {
     }
 };
 
-var bin_kind_to_file_path_map: std.EnumMap(types.TsNodeKind, []const u8) = .init(.{
+pub var bin_kind_to_file_path_map: std.EnumMap(types.TsNodeKind, []const u8) = .init(.{
     .HtmlTag = "html_tags.bin",
     .HtmlAttribute = "html_attributes.bin",
     .CssProperty = "css_props.bin",
@@ -188,13 +189,19 @@ pub fn init(server_allocator: std.mem.Allocator, io: std.Io, environ_map: *std.p
     errdefer deinit(server_allocator);
     var canipls_bins_dir_it = canipls_bins_dir.iterate();
     while (try canipls_bins_dir_it.next(io)) |entry| {
-        const bin = try canipls_bins_dir.readFileAllocOptions(
+        // const bin = try canipls_bins_dir.readFileAllocOptions(
+        //     io,
+        //     entry.name,
+        //     server_allocator,
+        //     .unlimited,
+        //     .@"8",
+        //     null,
+        // );
+        const bin = try canipls_bins_dir.readFileAlloc(
             io,
             entry.name,
             server_allocator,
             .unlimited,
-            .@"8",
-            null,
         );
         const bin_kind = getBinKindFromPath(entry.name).?;
 
@@ -250,7 +257,7 @@ pub fn init(server_allocator: std.mem.Allocator, io: std.Io, environ_map: *std.p
 }
 
 /// Returns `null` if any of the expected bin files are missing; oldest timestamp found of the present files otherwise.
-fn checkAllBinFilesPresentAndGetOldestTimestamp(io: std.Io, dir: *const std.Io.Dir, now_ms: i64) !?i64 {
+pub fn checkAllBinFilesPresentAndGetOldestTimestamp(io: std.Io, dir: *const std.Io.Dir, now_ms: i64) !?i64 {
     // check to make sure we have all necessary files, and none are out of date
     var checked_files: std.EnumMap(types.TsNodeKind, bool) = .init(.{});
     var oldest_timestamp_ms: i64 = now_ms;
@@ -279,8 +286,18 @@ pub fn deinit(
     /// Must be the same allocator passed into `init()`.
     server_allocator: std.mem.Allocator,
 ) void {
-    for (bin_map.values) |bin| {
-        server_allocator.free(bin.data);
+    var bin_map_it = bin_map.iterator();
+    // var i: usize = 0;
+    // for (std.enums.values(types.TsNodeKind)) |kind| {
+
+    // if (bin_map.get(kind)) |bin| {
+
+    // } else {
+    //     std.debug.print("")
+    // }
+    // }
+    while (bin_map_it.next()) |entry| {
+        server_allocator.free(entry.value.data);
     }
 }
 
@@ -337,49 +354,4 @@ pub fn getSymbolSupportInfoFromBin(symbol_stack: []const BinSearchSymbolInfo) ?B
     }
 
     return null;
-}
-
-test "All bin files are successfully fetched from the server" {
-    // arrange
-
-    const allocator = std.testing.allocator;
-    const io = std.testing.io;
-
-    var tmp_dir = std.testing.tmpDir(.{});
-    defer tmp_dir.cleanup();
-
-    const tmp_dir_path = try tmp_dir.dir.realPathFileAlloc(io, ".", allocator);
-    defer {
-        allocator.free(tmp_dir_path);
-    }
-
-    var environ_map: std.process.Environ.Map = .init(allocator);
-    defer environ_map.deinit();
-
-    if (builtin.os.tag == .windows)
-        try environ_map.put("LOCALAPPDATA", tmp_dir_path)
-    else
-        try environ_map.put("HOME", tmp_dir_path);
-
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-
-    // act
-
-    try init(arena.allocator(), io, &environ_map);
-
-    // assert
-
-    const canipls_bins_path = try std.fs.path.join(allocator, &.{ "canipls", "bins" });
-    defer allocator.free(canipls_bins_path);
-
-    const canipls_bins_dir = try tmp_dir.dir.openDir(io, canipls_bins_path, .{ .iterate = true });
-    const unneeded_timestamp = try checkAllBinFilesPresentAndGetOldestTimestamp(io, &canipls_bins_dir, 0);
-
-    try std.testing.expect(unneeded_timestamp != null);
-
-    var bin_kind_map = bin_kind_to_file_path_map.iterator();
-    while (bin_kind_map.next()) |entry| {
-        try std.testing.expect(bin_map.get(entry.key) != null);
-    }
 }

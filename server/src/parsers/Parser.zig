@@ -76,17 +76,14 @@ pub fn getDiagnosticsFromCode(
     queries: []const types.QueryInfo,
     injections: []const types.InjectionParseInfo,
 ) ![]lsp.types.Diagnostic {
-    std.debug.print("second\n", .{});
     const parser = ts.Parser.create();
     defer parser.destroy();
     try parser.setLanguage(lang);
-    std.debug.print("third\n", .{});
 
     var diagnostics: std.ArrayList(lsp.types.Diagnostic) = .empty;
 
     const parse_res = parser.parseString(code, null);
     if (parse_res) |ast| {
-        std.debug.print("fourth\n", .{});
         defer ast.destroy();
         var root_node = ast.rootNode();
 
@@ -103,8 +100,6 @@ pub fn getDiagnosticsFromCode(
         var error_offset: u32 = 0;
         const cursor = ts.QueryCursor.create();
         defer cursor.destroy();
-
-        std.debug.print("fifth\n", .{});
 
         for (queries) |query_info| {
             const query = try ts.Query.create(lang, query_info.ts_query_text, &error_offset);
