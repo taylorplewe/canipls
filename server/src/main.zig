@@ -8,7 +8,7 @@ const lsp_to_ts = @import("lsp_to_ts.zig");
 const bins = @import("parsers/bins.zig");
 const testing = @import("testing/testing.zig");
 
-pub fn main(init: std.process.Init) !void {
+pub fn main(init: std.process.Init) void {
     var read_buf: [2048]u8 = undefined;
     var stdio_transport: lsp.Transport.Stdio = .init(&read_buf, .stdin(), .stdout());
     const transport: *lsp.Transport = &stdio_transport.transport;
@@ -38,13 +38,16 @@ pub fn main(init: std.process.Init) !void {
     lsp_to_ts.init();
     defer lsp_to_ts.deinit();
 
-    try lsp.basic_server.run(
+    lsp.basic_server.run(
         init.io,
         init.gpa,
         transport,
         &handler,
         log.err,
-    );
+    ) catch |err| {
+        log.err("Could not run canipls language server: {}", .{err});
+        return;
+    };
 }
 
 test {
