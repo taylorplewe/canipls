@@ -201,12 +201,12 @@ fn parse(
                 .perNodeCallback = AtRulesContext.callback,
             },
             .{
-                .ts_query_text = PropertiesContext.QUERY,
-                .perNodeCallback = PropertiesContext.callback,
-            },
-            .{
                 .ts_query_text = SelectorsContext.QUERY,
                 .perNodeCallback = SelectorsContext.callback,
+            },
+            .{
+                .ts_query_text = PropertiesContext.QUERY,
+                .perNodeCallback = PropertiesContext.callback,
             },
         },
         &.{},
@@ -234,12 +234,12 @@ fn getHoverInfoAtPosition(
                 .perNodeCallback = AtRulesContext.callback,
             },
             .{
-                .ts_query_text = PropertiesContext.QUERY,
-                .perNodeCallback = PropertiesContext.callback,
-            },
-            .{
                 .ts_query_text = SelectorsContext.QUERY,
                 .perNodeCallback = SelectorsContext.callback,
+            },
+            .{
+                .ts_query_text = PropertiesContext.QUERY,
+                .perNodeCallback = PropertiesContext.callback,
             },
         },
         &.{},

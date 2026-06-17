@@ -6,6 +6,7 @@ const config = @import("config.zig");
 const Handler = @import("Handler.zig");
 const lsp_to_ts = @import("lsp_to_ts.zig");
 const bins = @import("parsers/bins.zig");
+const testing = @import("testing/testing.zig");
 
 pub fn main(init: std.process.Init) !void {
     var read_buf: [2048]u8 = undefined;
@@ -47,5 +48,5 @@ pub fn main(init: std.process.Init) !void {
 }
 
 test {
-    std.testing.refAllDecls(@This());
+    _ = testing;
 }

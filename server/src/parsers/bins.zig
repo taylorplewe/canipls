@@ -4,6 +4,7 @@ const build_options = @import("build_options");
 
 const utils = @import("../utils.zig");
 const types = @import("../types.zig");
+const testing = @import("../testing/testing.zig");
 
 const log = std.log.scoped(.canipls);
 
@@ -83,7 +84,7 @@ const Bin = struct {
     }
 };
 
-var bin_kind_to_file_path_map: std.EnumMap(types.TsNodeKind, []const u8) = .init(.{
+pub var bin_kind_to_file_path_map: std.EnumMap(types.TsNodeKind, []const u8) = .init(.{
     .HtmlTag = "html_tags.bin",
     .HtmlAttribute = "html_attributes.bin",
     .CssProperty = "css_props.bin",
@@ -130,39 +131,26 @@ pub fn init(server_allocator: std.mem.Allocator, io: std.Io, environ_map: *std.p
     // This time isn't terribly important, but will be *roughly* soon after the data on my server updates (midnight MDT).
     const now = std.Io.Timestamp.now(io, .real);
     const now_ms = now.toMilliseconds();
-    const last_midnight_utc_ms = now_ms - (@mod(now_ms, std.time.ms_per_day));
-    const last_seven_thirty_am_utc_ms = last_midnight_utc_ms + (std.time.ms_per_hour * 7) + (std.time.ms_per_min * 30);
+    const ms_since_last_midnight: i64 = @mod(now_ms, std.time.ms_per_day);
+    const last_midnight_utc_ms = now_ms - ms_since_last_midnight;
+    const ms_to_seven_thirty_am: i64 = (std.time.ms_per_hour * 7) + (std.time.ms_per_min * 30);
+    const last_seven_thirty_am_utc_ms = if (ms_since_last_midnight >= ms_to_seven_thirty_am)
+        last_midnight_utc_ms + ms_to_seven_thirty_am
+    else
+        (last_midnight_utc_ms - std.time.ms_per_day) + ms_to_seven_thirty_am;
 
     // stat any file inside that dir to see when we last fetched
     fetch_new_tarball_if_out_of_date: {
-        // check to make sure we have all necessary files, and none are out of date
-        var checked_files: std.EnumMap(types.TsNodeKind, bool) = .init(.{});
-        var oldest_timestamp_ms: i64 = now_ms;
-        var canipls_bins_dir_iterator = canipls_bins_dir.iterateAssumeFirstIteration();
-        while (try canipls_bins_dir_iterator.next(io)) |entry| {
-            const stat = try canipls_bins_dir.statFile(io, entry.name, .{});
-            const last_modification_time_ms = stat.mtime.toMilliseconds();
-            if (last_modification_time_ms < oldest_timestamp_ms) oldest_timestamp_ms = last_modification_time_ms;
-            if (getBinKindFromPath(entry.name)) |kind| checked_files.put(kind, true);
-        }
-
-        // compare `checked_files`' entries to those of `bin_kind_to_file_path_map`
-        var are_all_files_present = true;
-        var bin_kind_map = bin_kind_to_file_path_map.iterator();
-        while (bin_kind_map.next()) |entry| {
-            if (checked_files.get(entry.key) == null) {
-                are_all_files_present = false;
-                break;
-            }
-        }
+        const oldest_timestamp_ms = try checkAllBinFilesPresentAndGetOldestTimestamp(io, &canipls_bins_dir, now_ms);
+        const are_all_files_present = oldest_timestamp_ms != null;
 
         // don't need to fetch new tarball?
-        if (are_all_files_present and oldest_timestamp_ms >= last_seven_thirty_am_utc_ms) break :fetch_new_tarball_if_out_of_date;
+        if (are_all_files_present and oldest_timestamp_ms.? >= last_seven_thirty_am_utc_ms) break :fetch_new_tarball_if_out_of_date;
 
         log.info("fetching new canipls bin files tarball...", .{});
 
         // clear out directory
-        canipls_bins_dir_iterator = canipls_bins_dir.iterate();
+        var canipls_bins_dir_iterator = canipls_bins_dir.iterate();
         while (try canipls_bins_dir_iterator.next(io)) |entry| {
             try canipls_bins_dir.deleteFile(io, entry.name);
         }
@@ -192,7 +180,7 @@ pub fn init(server_allocator: std.mem.Allocator, io: std.Io, environ_map: *std.p
                 log.info("fetch error phrase: {s}", .{phrase});
             }
             // TODO: calculate just how out of date the data is; either quit the whole program if it's like > 2 weeks, otherwise explicitly say how out of date it is
-            log.warn("canipls will continue to function on existing data, which may be at least a day out of date.", .{});
+            log.warn("canipls will continue to function on existing data, which may be out of date.", .{});
             break :fetch_new_tarball_if_out_of_date;
         }
     }
@@ -201,7 +189,12 @@ pub fn init(server_allocator: std.mem.Allocator, io: std.Io, environ_map: *std.p
     errdefer deinit(server_allocator);
     var canipls_bins_dir_it = canipls_bins_dir.iterate();
     while (try canipls_bins_dir_it.next(io)) |entry| {
-        const bin = try canipls_bins_dir.readFileAlloc(io, entry.name, server_allocator, .unlimited);
+        const bin = try canipls_bins_dir.readFileAlloc(
+            io,
+            entry.name,
+            server_allocator,
+            .unlimited,
+        );
         const bin_kind = getBinKindFromPath(entry.name).?;
 
         const num_features_total = utils.getValueFromDataAligned(u32, bin[4..]);
@@ -255,12 +248,39 @@ pub fn init(server_allocator: std.mem.Allocator, io: std.Io, environ_map: *std.p
     }
 }
 
+/// Returns `null` if any of the expected bin files are missing; oldest timestamp found of the present files otherwise.
+pub fn checkAllBinFilesPresentAndGetOldestTimestamp(io: std.Io, dir: *const std.Io.Dir, now_ms: i64) !?i64 {
+    // check to make sure we have all necessary files, and none are out of date
+    var checked_files: std.EnumMap(types.TsNodeKind, bool) = .init(.{});
+    var oldest_timestamp_ms: i64 = now_ms;
+    var canipls_bins_dir_iterator = dir.iterateAssumeFirstIteration();
+    while (try canipls_bins_dir_iterator.next(io)) |entry| {
+        const stat = try dir.statFile(io, entry.name, .{});
+        const last_modification_time_ms = stat.mtime.toMilliseconds();
+        if (last_modification_time_ms < oldest_timestamp_ms) oldest_timestamp_ms = last_modification_time_ms;
+        if (getBinKindFromPath(entry.name)) |kind| checked_files.put(kind, true);
+    }
+
+    // compare `checked_files`' entries to those of `bin_kind_to_file_path_map`
+    var are_all_files_present = true;
+    var bin_kind_map = bin_kind_to_file_path_map.iterator();
+    while (bin_kind_map.next()) |entry| {
+        if (checked_files.get(entry.key) == null) {
+            are_all_files_present = false;
+            break;
+        }
+    }
+
+    return if (are_all_files_present) oldest_timestamp_ms else null;
+}
+
 pub fn deinit(
     /// Must be the same allocator passed into `init()`.
     server_allocator: std.mem.Allocator,
 ) void {
-    for (bin_map.values) |bin| {
-        server_allocator.free(bin.data);
+    var bin_map_it = bin_map.iterator();
+    while (bin_map_it.next()) |entry| {
+        server_allocator.free(entry.value.data);
     }
 }
 
