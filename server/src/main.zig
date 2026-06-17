@@ -95,6 +95,42 @@ test {
         try std.testing.expect(bins.bin_map.get(entry.key) != null);
     }
 
+    // js
+    const js = @import("parsers/js.zig");
+    {
+        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer arena.deinit();
+        const code =
+            \\const _1 = Temporal.Now.instant();
+            \\const _2 = XMLSerializer.prototype.serializeToString;
+            \\Intl.Collator.prototype.compare;
+            \\const o = {
+            \\  idk: Array.prototype.every,
+            \\}
+        ;
+        const diagnostics = js.JavascriptParser().parse(arena.allocator(), code, 0, 0);
+        try std.testing.expectEqual(10, diagnostics.len);
+        try std.testing.expectEqual(0, diagnostics[0].range.start.line);
+        try std.testing.expectEqual(11, diagnostics[0].range.start.character);
+        try std.testing.expectEqual(19, diagnostics[0].range.end.character);
+    }
+    {
+        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer arena.deinit();
+        const code =
+            \\export function List() {
+            \\    return <li>
+            \\        <button commandfor="idk" command="request-close">hello</button>
+            \\    </li>;
+            \\}
+        ;
+        const diagnostics = js.JavascriptParser().parse(arena.allocator(), code, 0, 0);
+        try std.testing.expectEqual(5, diagnostics.len);
+        try std.testing.expectEqual(1, diagnostics[0].range.start.line);
+        try std.testing.expectEqual(12, diagnostics[0].range.start.character);
+        try std.testing.expectEqual(14, diagnostics[0].range.end.character);
+    }
+
     // css
     const css = @import("parsers/css.zig");
     {
@@ -163,6 +199,25 @@ test {
         try std.testing.expectEqual(1, diagnostics[1].range.start.line);
         try std.testing.expectEqual(2, diagnostics[1].range.start.character);
         try std.testing.expectEqual(15, diagnostics[1].range.end.character);
+    }
+    {
+        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer arena.deinit();
+        const code =
+            \\<script>
+            \\const _1 = Temporal.Now.instant();
+            \\const _2 = XMLSerializer.prototype.serializeToString;
+            \\Intl.Collator.prototype.compare;
+            \\const o = {
+            \\  idk: Array.prototype.every,
+            \\}
+            \\</script>
+        ;
+        const diagnostics = html.HtmlParser().parse(arena.allocator(), code, 0, 0);
+        try std.testing.expectEqual(11, diagnostics.len);
+        try std.testing.expectEqual(1, diagnostics[1].range.start.line);
+        try std.testing.expectEqual(11, diagnostics[1].range.start.character);
+        try std.testing.expectEqual(19, diagnostics[1].range.end.character);
     }
 
     // std.testing.refAllDecls(@This());
