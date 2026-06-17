@@ -102,3 +102,25 @@ pub fn applyConfigFileToGlobalConfig(arena_process: std.mem.Allocator, file_byte
         }
     }
 }
+
+test applyConfigFileToGlobalConfig {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    const json =
+        \\{
+        \\    "support_threshold": 8.0,
+        \\    "show_low_support_warnings": false,
+        \\    "ignored_feature_ids": [
+        \\        "html_elements_textarea"
+        \\    ]
+        \\}
+    ;
+
+    try applyConfigFileToGlobalConfig(arena.allocator(), json);
+
+    try std.testing.expectEqual(config.support_threshold, 8.0);
+    try std.testing.expectEqual(config.show_low_support_warnings, false);
+    try std.testing.expectEqual(config.ignored_feature_ids.?.len, 1);
+    try std.testing.expectEqualStrings(config.ignored_feature_ids.?[0], "html_elements_textarea");
+}
