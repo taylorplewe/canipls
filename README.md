@@ -202,6 +202,11 @@ Example:
 ```
 
 ---
+Credit
+- [zigtools/lsp-kit](https://github.com/zigtools/lsp-kit) handles the actual LSP communication
+- [MDN `browser-compat-data`](https://github.com/mdn/browser-compat-data) contains all the feature support data
+- [caniuse.com](https://caniuse.com), especially its [browser support table](https://caniuse.com/usage-table)
+
 If you come across any strange or incorrect behavior, please don't hesitate to open an issue or pull request.
 
 > [!NOTE]
