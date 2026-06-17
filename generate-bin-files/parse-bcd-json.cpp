@@ -4,7 +4,7 @@
 // These binary files contain global browser support data for most HTML, CSS & JavaScript features. They were designed to be extremely compact and efficient for the parsing that canipls will be doing.
 // The browser usage data is retrieved from caniuse.com's own browser usage table: https://caniuse.com/usage-table. This parsing is done in `parse-caniuse-support-html.cpp`.
 //
-// minimum canipls version: 0.0.3
+// minimum canipls version: 0.0.5
 //
 // binary file format is as follows:
 //  1. header section: 4 bytes
