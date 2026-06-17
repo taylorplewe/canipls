@@ -74,6 +74,11 @@ test {
         try std.testing.expectEqual(0, diagnostics[0].range.start.line);
         try std.testing.expectEqual(11, diagnostics[0].range.start.character);
         try std.testing.expectEqual(19, diagnostics[0].range.end.character);
+
+        const hover_info = js.JavascriptParser().getHoverInfoAtPosition(arena.allocator(), code, 1, 2);
+        try std.testing.expectEqualStrings("Intl", hover_info.?.identifier);
+        try std.testing.expectEqualStrings("javascript_builtins_intl", hover_info.?.caniuse_id);
+        try std.testing.expect(hover_info.?.support_percentage > 95.0);
     }
     {
         var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -90,6 +95,11 @@ test {
         try std.testing.expectEqual(1, diagnostics[0].range.start.line);
         try std.testing.expectEqual(12, diagnostics[0].range.start.character);
         try std.testing.expectEqual(14, diagnostics[0].range.end.character);
+
+        const hover_info = js.JavascriptParser().getHoverInfoAtPosition(arena.allocator(), code, 12, 1);
+        try std.testing.expectEqualStrings("li", hover_info.?.identifier);
+        try std.testing.expectEqualStrings("html_elements_li", hover_info.?.caniuse_id);
+        try std.testing.expect(hover_info.?.support_percentage > 95.0);
     }
 
     // css
@@ -100,14 +110,19 @@ test {
             \\::scroll-button(*) {
             \\    color: white;
             \\}
-            \\::scroll-button(right) {
+            \\:root {
             \\}
         ;
         const diagnostics = css.CssParser().parse(arena.allocator(), code, 0, 0);
-        try std.testing.expectEqual(5, diagnostics.len);
+        try std.testing.expectEqual(4, diagnostics.len);
         try std.testing.expectEqual(0, diagnostics[0].range.start.line);
         try std.testing.expectEqual(2, diagnostics[0].range.start.character);
         try std.testing.expectEqual(15, diagnostics[0].range.end.character);
+
+        const hover_info = css.CssParser().getHoverInfoAtPosition(arena.allocator(), code, 1, 3);
+        try std.testing.expectEqualStrings("root", hover_info.?.identifier);
+        try std.testing.expectEqualStrings("css_selectors_root", hover_info.?.caniuse_id);
+        try std.testing.expect(hover_info.?.support_percentage > 95.0);
     }
     {
         var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -127,6 +142,11 @@ test {
         try std.testing.expectEqual(0, diagnostics[0].range.start.line);
         try std.testing.expectEqual(0, diagnostics[0].range.start.character);
         try std.testing.expectEqual(15, diagnostics[0].range.end.character);
+
+        const hover_info = css.CssParser().getHoverInfoAtPosition(arena.allocator(), code, 0, 3);
+        try std.testing.expectEqualStrings("page", hover_info.?.identifier);
+        try std.testing.expectEqualStrings("css_at-rules_page", hover_info.?.caniuse_id);
+        try std.testing.expect(hover_info.?.support_percentage > 93.0);
     }
 
     // html
@@ -142,36 +162,51 @@ test {
         try std.testing.expectEqual(0, diagnostics[0].range.start.line);
         try std.testing.expectEqual(1, diagnostics[0].range.start.character);
         try std.testing.expectEqual(9, diagnostics[0].range.end.character);
+
+        const hover_info = html.HtmlParser().getHoverInfoAtPosition(arena.allocator(), code, 1, 0);
+        try std.testing.expectEqualStrings("textarea", hover_info.?.identifier);
+        try std.testing.expectEqualStrings("html_elements_textarea", hover_info.?.caniuse_id);
+        try std.testing.expect(hover_info.?.support_percentage > 95.0);
     }
     {
         var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
         defer arena.deinit();
         const code =
             \\<style>
-            \\::scroll-button(*) {
+            \\:root {
             \\    color: white;
             \\}
             \\</style>
         ;
         const diagnostics = html.HtmlParser().parse(arena.allocator(), code, 0, 0);
-        try std.testing.expectEqual(4, diagnostics.len);
+        try std.testing.expectEqual(3, diagnostics.len);
         try std.testing.expectEqual(1, diagnostics[1].range.start.line);
-        try std.testing.expectEqual(2, diagnostics[1].range.start.character);
-        try std.testing.expectEqual(15, diagnostics[1].range.end.character);
+        try std.testing.expectEqual(1, diagnostics[1].range.start.character);
+        try std.testing.expectEqual(5, diagnostics[1].range.end.character);
+
+        const hover_info = html.HtmlParser().getHoverInfoAtPosition(arena.allocator(), code, 1, 1);
+        try std.testing.expectEqualStrings("root", hover_info.?.identifier);
+        try std.testing.expectEqualStrings("css_selectors_root", hover_info.?.caniuse_id);
+        try std.testing.expect(hover_info.?.support_percentage > 95.0);
     }
     {
         var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
         defer arena.deinit();
         const code =
             \\<script>
-            \\const _1 = Temporal.Now.instant();
+            \\const _1 = Intl.DateTimeFormat;
             \\</script>
         ;
         const diagnostics = html.HtmlParser().parse(arena.allocator(), code, 0, 0);
-        try std.testing.expectEqual(4, diagnostics.len);
+        try std.testing.expectEqual(3, diagnostics.len);
         try std.testing.expectEqual(1, diagnostics[1].range.start.line);
         try std.testing.expectEqual(11, diagnostics[1].range.start.character);
-        try std.testing.expectEqual(19, diagnostics[1].range.end.character);
+        try std.testing.expectEqual(15, diagnostics[1].range.end.character);
+
+        const hover_info = html.HtmlParser().getHoverInfoAtPosition(arena.allocator(), code, 16, 1);
+        try std.testing.expectEqualStrings("DateTimeFormat", hover_info.?.identifier);
+        try std.testing.expectEqualStrings("javascript_builtins_intl_datetimeformat", hover_info.?.caniuse_id);
+        try std.testing.expect(hover_info.?.support_percentage > 95.0);
     }
 
     // astro
@@ -181,15 +216,21 @@ test {
         const code =
             \\---
             \\const _1 = Temporal.Now.instant();
+            \\Intl.DateTimeFormat
             \\---
             \\
             \\<button commandfor="idk" command="request-close">hello</button>
         ;
         const diagnostics = astro.AstroParser().parse(arena.allocator(), code, 0, 0);
-        try std.testing.expectEqual(7, diagnostics.len);
+        try std.testing.expectEqual(9, diagnostics.len);
         try std.testing.expectEqual(1, diagnostics[4].range.start.line);
         try std.testing.expectEqual(11, diagnostics[4].range.start.character);
         try std.testing.expectEqual(19, diagnostics[4].range.end.character);
+
+        const hover_info = astro.AstroParser().getHoverInfoAtPosition(arena.allocator(), code, 5, 2);
+        try std.testing.expectEqualStrings("DateTimeFormat", hover_info.?.identifier);
+        try std.testing.expectEqualStrings("javascript_builtins_intl_datetimeformat", hover_info.?.caniuse_id);
+        try std.testing.expect(hover_info.?.support_percentage > 95.0);
     }
 
     // svelte
@@ -199,6 +240,7 @@ test {
         const code =
             \\<script lang="ts">
             \\const _1 = Temporal.Now.instant();
+            \\Intl.DateTimeFormat
             \\</script>
             \\
             \\{#if true}
@@ -208,9 +250,49 @@ test {
             \\{/if}
         ;
         const diagnostics = svelte.SvelteParser().parse(arena.allocator(), code, 0, 0);
-        try std.testing.expectEqual(10, diagnostics.len);
+        try std.testing.expectEqual(12, diagnostics.len);
         try std.testing.expectEqual(1, diagnostics[7].range.start.line);
         try std.testing.expectEqual(11, diagnostics[7].range.start.character);
         try std.testing.expectEqual(19, diagnostics[7].range.end.character);
+
+        const hover_info = svelte.SvelteParser().getHoverInfoAtPosition(arena.allocator(), code, 5, 2);
+        try std.testing.expectEqualStrings("DateTimeFormat", hover_info.?.identifier);
+        try std.testing.expectEqualStrings("javascript_builtins_intl_datetimeformat", hover_info.?.caniuse_id);
+        try std.testing.expect(hover_info.?.support_percentage > 95.0);
+    }
+
+    // config options
+    {
+        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer arena.deinit();
+        const code =
+            \\<textarea contenteditable="plaintext-only">
+            \\<button commandfor="someid" command="request-close">hello</button>
+        ;
+
+        config.config.support_threshold = 0;
+
+        var diagnostics = html.HtmlParser().parse(arena.allocator(), code, 0, 0);
+        try std.testing.expectEqual(0, diagnostics.len);
+
+        // hover should still work
+        const hover_info = html.HtmlParser().getHoverInfoAtPosition(arena.allocator(), code, 1, 0);
+        try std.testing.expectEqualStrings("textarea", hover_info.?.identifier);
+
+        // ignored features
+        config.config.support_threshold = 99.0;
+        var ignored_feature_ids = [_][]const u8{
+            "html_elements_textarea",
+        };
+        config.config.ignored_feature_ids = &ignored_feature_ids;
+        diagnostics = html.HtmlParser().parse(arena.allocator(), code, 0, 0);
+        try std.testing.expectEqual(6, diagnostics.len);
+
+        // * wildcard
+        ignored_feature_ids = [_][]const u8{
+            "html_elements_button*",
+        };
+        diagnostics = html.HtmlParser().parse(arena.allocator(), code, 0, 0);
+        try std.testing.expectEqual(3, diagnostics.len);
     }
 }
