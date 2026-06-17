@@ -97,6 +97,13 @@ pub fn getDiagnosticsFromCode(
         );
         defer allocator.free(ignored_spans);
 
+        if (ignored_spans.len == 1) {
+            switch (ignored_spans[0]) {
+                .whole_file => return &.{},
+                else => {},
+            }
+        }
+
         var error_offset: u32 = 0;
         const cursor = ts.QueryCursor.create();
         defer cursor.destroy();
@@ -119,6 +126,7 @@ pub fn getDiagnosticsFromCode(
                             .region => |ignored_region| {
                                 if (node.startPoint().row > ignored_region.row_start and node.startPoint().row < ignored_region.row_end) continue :capture_loop;
                             },
+                            else => {},
                         }
                     }
 
@@ -333,7 +341,9 @@ fn getIgnoreSpansFromCode(
 
         // gather up all the canipls-ignore spans, for later
         if (std.mem.eql(u8, comment, "canipls-ignore-file")) {
-            return &.{};
+            ignored_spans.clearAndFree(allocator);
+            ignored_spans.append(allocator, .whole_file) catch return &.{};
+            return ignored_spans.toOwnedSlice(allocator) catch &.{};
         } else if (std.mem.eql(u8, comment, "canipls-ignore")) {
             ignored_spans.append(allocator, .{ .row = comment_node.startPoint().row }) catch return &.{};
         } else if (std.mem.eql(u8, comment, "canipls-ignore-nextline")) {

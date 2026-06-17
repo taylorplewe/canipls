@@ -21,6 +21,7 @@ pub const IgnoredSpan = union(enum) {
         row_end: usize,
     },
     row: usize,
+    whole_file,
 };
 
 /// NOTE: the members of this enum must match exactly those of the `TsNodeKind` enum in `parse-bcd-json.cpp`

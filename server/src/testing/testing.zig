@@ -261,6 +261,56 @@ test {
         try std.testing.expect(hover_info.?.support_percentage > 95.0);
     }
 
+    // canipls-ignore comments
+    {
+        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer arena.deinit();
+
+        const code_1 =
+            \\<textarea contenteditable="plaintext-only"> <!-- canipls-ignore -->
+            \\<button commandfor="someid" command="request-close">hello</button>
+        ;
+        var diagnostics = html.HtmlParser().parse(arena.allocator(), code_1, 0, 0);
+        try std.testing.expectEqual(4, diagnostics.len);
+
+        // hover should still work
+        const hover_info = html.HtmlParser().getHoverInfoAtPosition(arena.allocator(), code_1, 1, 0);
+        try std.testing.expectEqualStrings("textarea", hover_info.?.identifier);
+
+        const code_2 =
+            \\<!-- canipls-ignore-start -->
+            \\<textarea contenteditable="plaintext-only">
+            \\<button commandfor="someid" command="request-close">hello</button>
+            \\<!-- canipls-ignore-end -->
+        ;
+        diagnostics = html.HtmlParser().parse(arena.allocator(), code_2, 0, 0);
+        try std.testing.expectEqual(0, diagnostics.len);
+
+        const code_3 =
+            \\<textarea contenteditable="plaintext-only">
+            \\<button commandfor="someid" command="request-close">hello</button>
+            \\<!-- canipls-ignore-end -->
+        ;
+        diagnostics = html.HtmlParser().parse(arena.allocator(), code_3, 0, 0);
+        try std.testing.expectEqual(8, diagnostics.len);
+
+        const code_4 =
+            \\<!-- canipls-ignore-file -->
+            \\<textarea contenteditable="plaintext-only">
+            \\<button commandfor="someid" command="request-close">hello</button>
+        ;
+        diagnostics = html.HtmlParser().parse(arena.allocator(), code_4, 0, 0);
+        try std.testing.expectEqual(0, diagnostics.len);
+
+        const code_5 =
+            \\<!-- canipls-ignore-nextline -->
+            \\<textarea contenteditable="plaintext-only">
+            \\<button commandfor="someid" command="request-close">hello</button>
+        ;
+        diagnostics = html.HtmlParser().parse(arena.allocator(), code_5, 0, 0);
+        try std.testing.expectEqual(4, diagnostics.len);
+    }
+
     // config options
     {
         var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
