@@ -118,7 +118,10 @@ pub fn init(server_allocator: std.mem.Allocator, io: std.Io, environ_map: *std.p
         user_local_path = environ_map.get("LOCALAPPDATA") orelse return InitBinsError.NoLocalAppDataEnv;
     } else {
         const home_path = environ_map.get("HOME") orelse return InitBinsError.NoHomeEnv;
-        user_local_path = try std.fs.path.join(arena.allocator(), &.{ home_path, ".cache" });
+        user_local_path = if (builtin.is_test)
+            home_path
+        else
+            try std.fs.path.join(arena.allocator(), &.{ home_path, ".cache" });
     }
     const canipls_bins_path = try std.fs.path.join(arena.allocator(), &.{ user_local_path, "canipls", "bins" });
 
