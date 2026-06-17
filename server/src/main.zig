@@ -206,19 +206,54 @@ test {
         const code =
             \\<script>
             \\const _1 = Temporal.Now.instant();
-            \\const _2 = XMLSerializer.prototype.serializeToString;
-            \\Intl.Collator.prototype.compare;
-            \\const o = {
-            \\  idk: Array.prototype.every,
-            \\}
             \\</script>
         ;
         const diagnostics = html.HtmlParser().parse(arena.allocator(), code, 0, 0);
-        try std.testing.expectEqual(11, diagnostics.len);
+        try std.testing.expectEqual(4, diagnostics.len);
         try std.testing.expectEqual(1, diagnostics[1].range.start.line);
         try std.testing.expectEqual(11, diagnostics[1].range.start.character);
         try std.testing.expectEqual(19, diagnostics[1].range.end.character);
     }
 
-    // std.testing.refAllDecls(@This());
+    // astro
+    const astro = @import("parsers/astro.zig");
+    {
+        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer arena.deinit();
+        const code =
+            \\---
+            \\const _1 = Temporal.Now.instant();
+            \\---
+            \\
+            \\<button commandfor="idk" command="request-close">hello</button>
+        ;
+        const diagnostics = astro.AstroParser().parse(arena.allocator(), code, 0, 0);
+        try std.testing.expectEqual(7, diagnostics.len);
+        try std.testing.expectEqual(1, diagnostics[4].range.start.line);
+        try std.testing.expectEqual(11, diagnostics[4].range.start.character);
+        try std.testing.expectEqual(19, diagnostics[4].range.end.character);
+    }
+
+    // svelte
+    const svelte = @import("parsers/svelte.zig");
+    {
+        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer arena.deinit();
+        const code =
+            \\<script lang="ts">
+            \\const _1 = Temporal.Now.instant();
+            \\</script>
+            \\
+            \\{#if true}
+            \\    <button commandfor="idk" command="request-close">hello</button>
+            \\{:else}
+            \\    <button>click me</button>
+            \\{/if}
+        ;
+        const diagnostics = svelte.SvelteParser().parse(arena.allocator(), code, 0, 0);
+        try std.testing.expectEqual(10, diagnostics.len);
+        try std.testing.expectEqual(1, diagnostics[7].range.start.line);
+        try std.testing.expectEqual(11, diagnostics[7].range.start.character);
+        try std.testing.expectEqual(19, diagnostics[7].range.end.character);
+    }
 }

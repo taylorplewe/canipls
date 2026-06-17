@@ -264,21 +264,3 @@ fn trimComment(comment_raw: []const u8) []const u8 {
         " \t",
     );
 }
-
-test "CSS selectors" {
-    // const code =
-    //     \\::scroll-button(*) {
-    //     \\    color: white;
-    //     \\}
-    //     \\::scroll-button(right) {
-    //     \\}
-    //     \\
-    // ;
-
-    // var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    // defer arena.deinit();
-
-    // const diagnostics = parse(arena.allocator(), code, 0, 0);
-
-    // try std.testing.expectEqual(5, diagnostics.len);
-}
