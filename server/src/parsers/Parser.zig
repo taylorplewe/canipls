@@ -87,14 +87,20 @@ pub fn getDiagnosticsFromCode(
         defer ast.destroy();
         var root_node = ast.rootNode();
 
-        const ignored_spans = getIgnoreSpansFromCode(
-            allocator,
-            lang,
-            &root_node,
-            trimComment,
-            &diagnostics,
-            code,
-        );
+        const ignored_spans = blk: {
+            break :blk getIgnoreSpansFromCode(
+                allocator,
+                lang,
+                &root_node,
+                trimComment,
+                &diagnostics,
+                code,
+            ) catch |err| {
+                log.err("could not get canipls-ignore spans: {}", .{err});
+                log.err("ignoring any canipls-ignore comments", .{});
+                break :blk &.{};
+            };
+        };
         defer allocator.free(ignored_spans);
 
         if (ignored_spans.len == 1) {
@@ -320,14 +326,14 @@ fn getIgnoreSpansFromCode(
     trimComment: *const fn (in: []const u8) []const u8,
     diagnostics: *std.ArrayList(lsp.types.Diagnostic),
     code: []const u8,
-) []types.IgnoredSpan {
+) ![]types.IgnoredSpan {
     const cursor = ts.QueryCursor.create();
     defer cursor.destroy();
 
     var error_offset: u32 = 0;
     const comment_query = ts.Query.create(lang, QUERY_COMMENT, &error_offset) catch |err| {
-        log.err("could not create tree-sitter comment query: {}", .{err});
-        return &.{};
+        log.err("could not create tree-sitter comment query", .{});
+        return err;
     };
     defer comment_query.destroy();
 
@@ -342,53 +348,47 @@ fn getIgnoreSpansFromCode(
         // gather up all the canipls-ignore spans, for later
         if (std.mem.eql(u8, comment, "canipls-ignore-file")) {
             ignored_spans.clearAndFree(allocator);
-            ignored_spans.append(allocator, .whole_file) catch return &.{};
-            return ignored_spans.toOwnedSlice(allocator) catch &.{};
+            try ignored_spans.append(allocator, .whole_file);
+            return try ignored_spans.toOwnedSlice(allocator);
         } else if (std.mem.eql(u8, comment, "canipls-ignore")) {
-            ignored_spans.append(allocator, .{ .row = comment_node.startPoint().row }) catch return &.{};
+            try ignored_spans.append(allocator, .{ .row = comment_node.startPoint().row });
         } else if (std.mem.eql(u8, comment, "canipls-ignore-nextline")) {
-            ignored_spans.append(allocator, .{ .row = comment_node.startPoint().row + 1 }) catch return &.{};
+            try ignored_spans.append(allocator, .{ .row = comment_node.startPoint().row + 1 });
         } else if (std.mem.eql(u8, comment, "canipls-ignore-start")) {
             if (current_ignore_region_start_row) |row_start| {
-                diagnostics.append(allocator, .{
+                try diagnostics.append(allocator, .{
                     .range = .{
                         .start = .{ .character = comment_node.startPoint().column, .line = comment_node.startPoint().row },
                         .end = .{ .character = comment_node.endPoint().column, .line = comment_node.endPoint().row },
                     },
-                    .message = std.fmt.allocPrint(allocator, "This ignore-start shadows the one found on line {d}", .{row_start + 1}) catch |err| {
-                        log.err("could not call allocPrint() when appending comment diagnostic: {}", .{err});
-                        return ignored_spans.toOwnedSlice(allocator) catch &.{};
-                    },
+                    .message = try std.fmt.allocPrint(allocator, "This ignore-start shadows the one found on line {d}", .{row_start + 1}),
                     .severity = .Warning,
-                }) catch return &.{};
+                });
             } else {
                 current_ignore_region_start_row = comment_node.startPoint().row;
             }
         } else if (std.mem.eql(u8, comment, "canipls-ignore-end")) {
             if (current_ignore_region_start_row) |row_start| {
-                ignored_spans.append(
+                try ignored_spans.append(
                     allocator,
                     .{
                         .region = .{ .row_start = row_start, .row_end = comment_node.startPoint().row },
                     },
-                ) catch return &.{};
+                );
             } else {
-                diagnostics.append(allocator, .{
+                try diagnostics.append(allocator, .{
                     .range = .{
                         .start = .{ .character = comment_node.startPoint().column, .line = comment_node.startPoint().row },
                         .end = .{ .character = comment_node.endPoint().column, .line = comment_node.endPoint().row },
                     },
-                    .message = std.fmt.allocPrint(allocator, "This ignore-end has no ignore-start pairing", .{}) catch |err| {
-                        log.err("could not call allocPrint() when appending comment diagnostic: {}", .{err});
-                        return ignored_spans.toOwnedSlice(allocator) catch &.{};
-                    },
+                    .message = try std.fmt.allocPrint(allocator, "This ignore-end has no ignore-start pairing", .{}),
                     .severity = .Warning,
-                }) catch return &.{};
+                });
             }
         }
     }
 
-    return ignored_spans.toOwnedSlice(allocator) catch &.{};
+    return try ignored_spans.toOwnedSlice(allocator);
 }
 
 /// Check the config option `ignored_feature_ids` to see if a given feature's caniuse ID is on the ignore list
