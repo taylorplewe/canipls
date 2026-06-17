@@ -189,14 +189,6 @@ pub fn init(server_allocator: std.mem.Allocator, io: std.Io, environ_map: *std.p
     errdefer deinit(server_allocator);
     var canipls_bins_dir_it = canipls_bins_dir.iterate();
     while (try canipls_bins_dir_it.next(io)) |entry| {
-        // const bin = try canipls_bins_dir.readFileAllocOptions(
-        //     io,
-        //     entry.name,
-        //     server_allocator,
-        //     .unlimited,
-        //     .@"8",
-        //     null,
-        // );
         const bin = try canipls_bins_dir.readFileAlloc(
             io,
             entry.name,
@@ -287,15 +279,6 @@ pub fn deinit(
     server_allocator: std.mem.Allocator,
 ) void {
     var bin_map_it = bin_map.iterator();
-    // var i: usize = 0;
-    // for (std.enums.values(types.TsNodeKind)) |kind| {
-
-    // if (bin_map.get(kind)) |bin| {
-
-    // } else {
-    //     std.debug.print("")
-    // }
-    // }
     while (bin_map_it.next()) |entry| {
         server_allocator.free(entry.value.data);
     }
