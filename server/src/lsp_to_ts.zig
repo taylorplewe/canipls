@@ -45,7 +45,7 @@ fn getParserFromLspLanguageKind(language_kind: lsp.types.TextDocument.LanguageKi
         .custom_value => |kind| {
             return if (std.mem.eql(u8, kind, "vue"))
                 parsers.get("html")
-            else if (std.mem.eql(u8, kind, "Vue.js"))
+            else if (std.mem.eql(u8, kind, "vue.js")) // Zed "vue" extension: https://github.com/zed-extensions/vue
                 parsers.get("html")
             else if (std.mem.eql(u8, kind, "svelte"))
                 parsers.get("svelte")
