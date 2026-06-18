@@ -28,7 +28,7 @@ Supported file types:
 
 canipls works by using [Tree-sitter](https://tree-sitter.github.io/tree-sitter/) parsers to make sense of input code; *it only knows basic syntactical structure*, nothing else.
 
-What this means is that, unfotunately, canipls is not smart enough to know that *type* JavaScript identifiers are, it just knows they're identifiers.
+What this means is that, unfotunately, canipls is not smart enough to know the *type* of JavaScript identifiers, only that they're identifiers.
 
 For instance, given the following code:
 ```typescript
