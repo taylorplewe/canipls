@@ -183,6 +183,8 @@ Search for the feature you want on caniuse.com, and click the big `#` button to 
     
 <img width="391" height="366" alt="image" src="https://github.com/user-attachments/assets/fe30904e-de30-4f83-b565-8c26e61f5ddc" />
 
+_NOTE: canipls only works on features whose ID starts with `mdn-`_.
+
 The caniuse feature ID is the URL following "`caniuse.com/`", but canipls is only concerned with what follows `mdn-`:
 
 <img width="375" height="43" alt="image" src="https://github.com/user-attachments/assets/7e4faf84-2ab8-4ffd-8807-9d07853128e0" />
