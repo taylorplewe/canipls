@@ -274,9 +274,9 @@ So basically, my simd version is a little faster because it uses 32-byte vectors
 
 EDIT (7/28/26): I realized the machine code output is doing _unaligned SIMD moves_. If I make sure every 32-byte-wide feature name is aligned to 32 bytes, I can use aligned SIMD instructions (`vmovdqa` instead of `vmovdqu`.) I'm very curious just how much of a perf increase that would be.
 
-Problem is, there's actually real people (not that much, but still) using canipls now, mostly thru VS Code, so just how I can safely modify the bin files will be tricky. I'd have to quickly (as atomically as possible) update canipls itself to the new parsing code which has the align check, so everyone gets the updated canipls version quickly that parses the new bin files correctly.
+Problem is, there's actually real people (not that much, but still) using canipls now, mostly thru VS Code, so just how I can safely modify the bin files will be tricky. I can't just update the bin files to be aligned, it will break everyone's canipls. I'm not sure if it will crash and make their editor freak out or not. I'd have to quickly (as atomically as possible) update canipls itself to the new parsing code which has the align check, so everyone gets the updated canipls version quickly that parses the new bin files correctly.
 
-I verified this in godbolt: by adding the following line before the memory read:
+I verified this in godbolt. by adding the following line before the memory read:
 
 ```zig
 // use aligned SIMD instruction (`vmovdqa`) instead of unaligned instruction (`vmovdqu`)
