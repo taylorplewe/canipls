@@ -56,7 +56,6 @@ const Bin = struct {
         index_end: usize,
         name_padded: []const u8,
     ) ?usize {
-        const before = std.Io.Clock.now(.awake, this_io);
         name_loop: for (index_start..index_end) |i| {
             const next_identifier_offset = self.section_addr.get(.Identifier) + (i * sizeof_entry_per_section.get(.Identifier));
 
@@ -74,9 +73,6 @@ const Bin = struct {
                 if (std.mem.eql(u8, name_padded, name_in_bin)) return i;
             }
         }
-        const after = std.Io.Clock.now(.awake, this_io);
-        const duration = before.durationTo(after);
-        log.info("bins.searchRangeForSymbol took {d} ns\n", .{duration.toNanoseconds()});
         return null;
     }
 
