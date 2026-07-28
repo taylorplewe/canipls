@@ -10,6 +10,8 @@ const log = std.log.scoped(.canipls);
 
 const BIN_FILE_STRING_WIDTH = 32;
 
+var this_io: std.Io = undefined;
+
 const BinSection = enum {
     Support,
     CiuIdAddr,
@@ -54,6 +56,7 @@ const Bin = struct {
         index_end: usize,
         name_padded: []const u8,
     ) ?usize {
+        const before = std.Io.Clock.now(.awake, this_io);
         name_loop: for (index_start..index_end) |i| {
             const next_identifier_offset = self.section_addr.get(.Identifier) + (i * sizeof_entry_per_section.get(.Identifier));
 
@@ -71,6 +74,9 @@ const Bin = struct {
                 if (std.mem.eql(u8, name_padded, name_in_bin)) return i;
             }
         }
+        const after = std.Io.Clock.now(.awake, this_io);
+        const duration = before.durationTo(after);
+        log.info("bins.searchRangeForSymbol took {d} ns\n", .{duration.toNanoseconds()});
         return null;
     }
 
@@ -109,6 +115,7 @@ const InitBinsError = error{
 const CANIPLS_BINS_URL = "https://whencaniuse.com/canipls-bins-new.tar.gz";
 
 pub fn init(server_allocator: std.mem.Allocator, io: std.Io, environ_map: *std.process.Environ.Map) !void {
+    this_io = io;
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
@@ -237,8 +244,12 @@ pub fn init(server_allocator: std.mem.Allocator, io: std.Io, environ_map: *std.p
         const is_canipls_version_compatible =
             if (bin[0] > build_options.version.major)
                 false
+            else if (bin[0] < build_options.version.major)
+                true
             else if (bin[1] > build_options.version.minor)
                 false
+            else if (bin[1] < build_options.version.minor)
+                true
             else if (bin[2] > build_options.version.patch)
                 false
             else

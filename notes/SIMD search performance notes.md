@@ -322,3 +322,48 @@ example.findInStr:
     vzeroupper
     ret
 ```
+
+I placed the following at the top of `Bin.searchRangeForSymbol()`:
+
+```zig
+const before = std.Io.Clock.now(.awake, this_io);
+```
+
+and this at the end, before the `return null`:
+
+```zig
+const after = std.Io.Clock.now(.awake, this_io);
+const duration = before.durationTo(after);
+log.info("bins.searchRangeForSymbol took {d} ns\n", .{duration.toNanoseconds()});
+```
+
+and then opening the following JS file (it only searches the long identifier on the second line):
+
+```javascript
+const this_is_a_long_identifier = 4;
+const another = this_is_a_long_identifier;
+```
+
+### Results before (ReleaseFast build):
+
+- 3,100 ns
+- 5,200 ns
+- 3,800 ns
+- 3,200 ns
+- 5,900 ns
+- 6,100 ns
+- 6,500 ns
+- 6,500 ns
+- 6,700 ns
+- 6,400 ns
+- 4,900 ns
+- 6,000 ns
+- 6,100 ns
+- 6,100 ns
+- 8,200 ns
+- 6,700 ns
+- 6,600 ns
+- 5,900 ns
+- 3,000 ns
+- 5,500 ns
+- 6,800 ns
