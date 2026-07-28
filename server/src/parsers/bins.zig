@@ -106,7 +106,7 @@ const InitBinsError = error{
     IncompatibleCaniplsVersion,
 };
 
-const CANIPLS_BINS_URL = "https://whencaniuse.com/canipls-bins.tar.gz";
+const CANIPLS_BINS_URL = "https://whencaniuse.com/canipls-bins-new.tar.gz";
 
 pub fn init(server_allocator: std.mem.Allocator, io: std.Io, environ_map: *std.process.Environ.Map) !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -212,6 +212,13 @@ pub fn init(server_allocator: std.mem.Allocator, io: std.Io, environ_map: *std.p
             var addrs: std.EnumArray(BinSection, usize) = .initFill(0);
             var current_pos: usize = sizeof_header;
             for (sizeof_bin_sections.values, 0..) |size, i| {
+                // 32-byte feature names are aligned to 32 bytes
+                if (@as(BinSection, @enumFromInt(i)) == .Identifier) {
+                    // compiles to (current_pos + 31) & -32 (two instructions in x86)
+                    const unaligned_amount = current_pos & 0b11111;
+                    if (unaligned_amount > 0)
+                        current_pos += (32 - unaligned_amount);
+                }
                 addrs.set(@enumFromInt(i), current_pos);
                 current_pos += size;
             }
