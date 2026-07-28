@@ -16,13 +16,14 @@ I want to employ SIMD in the searching--likely as seen in [this approach](https:
 ## The process!
 
 ### File to test on
+
 First, I need a massive JS file to test on. I guess it's fine if it's minified. Perhaps `datastar.js`? Or the htmx one if it's larger which I think it is?
 
-| file | minified? | size |
-| - | - | - |
-| `datastar.js` | yes | 34,092 |
-| `htmx.min.js` | yes | 51,240 |
-| `htmx.js` | no | 173,977 |
+| file          | minified? | size    |
+| ------------- | --------- | ------- |
+| `datastar.js` | yes       | 34,092  |
+| `htmx.min.js` | yes       | 51,240  |
+| `htmx.js`     | no        | 173,977 |
 
 Hmm, so I might try it on the un-minified `htmx.js` file.
 
@@ -30,15 +31,17 @@ Hmm, so I might try it on the un-minified `htmx.js` file.
 
 How should I measure performance? I can simply measure the time it takes to execute the `getDiagnosticsFromCode()` function in `Parser.zig`. That's where the important logic happens.
 
-Whelp I just opened `htmx.js` in Helix and the canipls performance was simply unacceptable. It takes a second or two *between each keystroke* to parse the whole file, so to type:
+Whelp I just opened `htmx.js` in Helix and the canipls performance was simply unacceptable. It takes a second or two _between each keystroke_ to parse the whole file, so to type:
+
 ```typescript
 const now = Temporal.Now.instant();
 ```
+
 Took like 20+ seconds for all the diagnostics to actually show up. Yikes. Before I worry about SIMD, is there any way to debounce this?
 
 Well I'll go ahead with SIMD for now and just isolate that performance improvement. I'll only measure on document open, won't worry about editing for now.
 
-I am going to test both debug and release build performance, before doing SIMD stuff and after, *only surrounding the while cursor next match loop* inside `getDiagnosticsFromCode()`.
+I am going to test both debug and release build performance, before doing SIMD stuff and after, _only surrounding the while cursor next match loop_ inside `getDiagnosticsFromCode()`.
 
 ### The SIMD code
 
@@ -102,6 +105,7 @@ if (maybe_block_size) |block_size| {
     - 10,554 μs
 
 ### Results after
+
 - debug build
     - 230,271 μs
     - 223,812 μs
@@ -134,6 +138,7 @@ I decided to only allow >= 32 SIMD vector lengths into the SIMD search branch. T
 I also realized I was calculating the equality in a dumb way, just copying and pasting code from that article and changing it a little. All I have to do is a simple AND to see if there's any 1s in the equality vector.
 
 New code:
+
 ```zig
 const maybe_block_size = std.simd.suggestVectorLength(u8);
 const is_simd_vector_size_big_enough = if (maybe_block_size) |block_size| block_size >= 32 else false;
@@ -152,6 +157,7 @@ return i;
 ```
 
 ### Results after v2
+
 - debug build
     - 189,562 μs
     - 189,842 μs
@@ -184,6 +190,7 @@ Gonna do some godbolt and see what the output machine code looks like.
 Godbolt full link: https://godbolt.org/#g:!((g:!((g:!((h:codeEditor,i:(filename:'1',fontScale:16,fontUsePx:'0',j:1,lang:zig,selection:(endColumn:2,endLineNumber:15,positionColumn:2,positionLineNumber:15,selectionStartColumn:2,selectionStartLineNumber:15,startColumn:2,startLineNumber:15),source:'const+SimdString+%3D+@Vector(32,+u8)%3B%0A%0Aexport+fn+findInStr(%0A++++haystack_ptr:+%5B*%5Du8,%0A++++needle_ptr:+%5B*%5Du8,%0A)+bool+%7B%0A++++const+haystack:+%5B%5Dconst+u8+%3D+haystack_ptr%5B0..32%5D%3B%0A++++const+needle:+%5B%5Dconst+u8+%3D+needle_ptr%5B0..32%5D%3B%0A%0A++++const+haystack_vec:+SimdString+%3D+haystack%5B0..32%5D.*%3B%0A++++const+needle_vec:+SimdString+%3D+needle%5B0..32%5D.*%3B%0A++++const+eq+%3D+@as(u32,+@bitCast(~(haystack_vec+%3D%3D+needle_vec)))%3B%0A++++if+(eq+%26+0xffffffff+!!%3D+0)+return+false%3B%0A++++return+true%3B%0A%7D'),l:'5',n:'0',o:'Zig+source+%231',t:'0')),k:49.725315895112686,l:'4',n:'0',o:'',s:0,t:'0'),(g:!((h:compiler,i:(compiler:z0160,filters:(b:'0',binary:'1',binaryObject:'1',commentOnly:'0',debugCalls:'1',demangle:'0',directives:'0',execute:'0',intel:'0',libraryCode:'0',trim:'1',verboseDemangling:'0'),flagsViewOpen:'1',fontScale:14,fontUsePx:'0',j:1,lang:zig,libs:!(),options:'-O+ReleaseFast',overrides:!(),selection:(endColumn:1,endLineNumber:1,positionColumn:1,positionLineNumber:1,selectionStartColumn:1,selectionStartLineNumber:1,startColumn:1,startLineNumber:1),source:1),l:'5',n:'0',o:'+zig+0.16.0+(Editor+%231)',t:'0')),k:50.27468410488733,l:'4',m:100,n:'0',o:'',s:0,t:'0')),l:'2',n:'0',o:'',t:'0')),version:4
 
 Input code:
+
 ```zig
 const SimdString = @Vector(32, u8);
 export fn findInStr(
@@ -202,6 +209,7 @@ export fn findInStr(
 ```
 
 Output machine code:
+
 ```assembly
 example.findInStr:
     push    rbp
@@ -220,6 +228,7 @@ Dang. Looks pretty good. I was gonna try handwriting some SIMD assembly, dynamic
 vs. the "scalar" search (you'll see why the quotes are there:) https://godbolt.org/#g:!((g:!((g:!((h:codeEditor,i:(filename:'1',fontScale:16,fontUsePx:'0',j:1,lang:zig,selection:(endColumn:2,endLineNumber:11,positionColumn:1,positionLineNumber:1,selectionStartColumn:2,selectionStartLineNumber:11,startColumn:1,startLineNumber:1),source:'const+std+%3D+@import(%22std%22)%3B%0Aexport+fn+findInStr(%0A++++haystack_ptr:+%5B*%5Du8,%0A++++needle_ptr:+%5B*%5Du8,%0A)+bool+%7B%0A++++const+haystack:+%5B%5Dconst+u8+%3D+haystack_ptr%5B0..32%5D%3B%0A++++const+needle:+%5B%5Dconst+u8+%3D+needle_ptr%5B0..32%5D%3B%0A%0A++++if+(haystack.len+!!%3D+needle.len)+unreachable%3B+//+optimize+away+unneeded+length+checks%3B+we+know+they+are+the+same%0A++++return+std.mem.eql(u8,+haystack,+needle)%3B%0A%7D'),l:'5',n:'0',o:'Zig+source+%231',t:'0')),k:49.81687726340846,l:'4',n:'0',o:'',s:0,t:'0'),(g:!((h:compiler,i:(compiler:z0160,filters:(b:'0',binary:'1',binaryObject:'1',commentOnly:'0',debugCalls:'1',demangle:'0',directives:'0',execute:'0',intel:'0',libraryCode:'0',trim:'1',verboseDemangling:'0'),flagsViewOpen:'1',fontScale:14,fontUsePx:'0',j:1,lang:zig,libs:!(),options:'-O+ReleaseFast',overrides:!(),selection:(endColumn:1,endLineNumber:1,positionColumn:1,positionLineNumber:1,selectionStartColumn:1,selectionStartLineNumber:1,startColumn:1,startLineNumber:1),source:1),l:'5',n:'0',o:'+zig+0.16.0+(Editor+%231)',t:'0')),k:50.18312273659156,l:'4',m:100,n:'0',o:'',s:0,t:'0')),l:'2',n:'0',o:'',t:'0')),version:4
 
 Input code:
+
 ```zig
 const std = @import("std");
 export fn findInStr(
@@ -235,6 +244,7 @@ export fn findInStr(
 ```
 
 Output machine code:
+
 ```assembly
 example.findInStr:
     push    rbp
@@ -259,3 +269,56 @@ example.findInStr:
 Lmao. Moral of the story: LLVM is smart. I guess you don't even need to be that smart given the setup I gave it. I basically gave it a layup.
 
 So basically, my simd version is a little faster because it uses 32-byte vectors instead of 2 16-byte vectors. Makes sense why it's not a huge improvement.
+
+---
+
+EDIT (7/28/26): I realized the machine code output is doing _unaligned SIMD moves_. If I make sure every 32-byte-wide feature name is aligned to 32 bytes, I can use aligned SIMD instructions (`vmovdqa` instead of `vmovdqu`.) I'm very curious just how much of a perf increase that would be.
+
+Problem is, there's actually real people (not that much, but still) using canipls now, mostly thru VS Code, so just how I can safely modify the bin files will be tricky. I'd have to quickly (as atomically as possible) update canipls itself to the new parsing code which has the align check, so everyone gets the updated canipls version quickly that parses the new bin files correctly.
+
+I verified this in godbolt: by adding the following line before the memory read:
+
+```zig
+// use aligned SIMD instruction (`vmovdqa`) instead of unaligned instruction (`vmovdqu`)
+if (@intFromPtr(haystack.ptr) & 31 != 0) unreachable; // or 0b1_1111, 0x1f or 0b11111 instead of 31
+```
+
+it does indeed emit the aligned instruction.
+
+Full godbolt link: https://godbolt.org/#g:!((g:!((g:!((h:codeEditor,i:(filename:'1',fontScale:16,fontUsePx:'0',j:1,lang:zig,selection:(endColumn:1,endLineNumber:11,positionColumn:1,positionLineNumber:11,selectionStartColumn:1,selectionStartLineNumber:10,startColumn:1,startLineNumber:10),source:'const+SimdString+%3D+@Vector(32,+u8)%3B%0A%0Aexport+fn+findInStr(%0A++++haystack_ptr:+%5B*%5Du8,%0A++++needle_ptr:+%5B*%5Du8,%0A)+bool+%7B%0A++++const+haystack:+%5B%5Dconst+u8+%3D+haystack_ptr%5B0..32%5D%3B%0A++++const+needle:+%5B%5Dconst+u8+%3D+needle_ptr%5B0..32%5D%3B%0A%0A++++if+(@intFromPtr(haystack.ptr)+%26+31+!!%3D+0)+unreachable%3B%0A++++const+haystack_vec:+SimdString+%3D+haystack%5B0..32%5D.*%3B%0A++++const+needle_vec:+SimdString+%3D+needle%5B0..32%5D.*%3B%0A++++const+eq+%3D+@as(u32,+@bitCast(~(haystack_vec+%3D%3D+needle_vec)))%3B%0A++++if+(eq+%26+0xffffffff+!!%3D+0)+return+false%3B%0A++++return+true%3B%0A%7D'),l:'5',n:'0',o:'Zig+source+%231',t:'0')),k:49.81687726340846,l:'4',n:'0',o:'',s:0,t:'0'),(g:!((h:compiler,i:(compiler:z0160,filters:(b:'0',binary:'1',binaryObject:'1',commentOnly:'0',debugCalls:'1',demangle:'0',directives:'0',execute:'0',intel:'0',libraryCode:'0',trim:'1',verboseDemangling:'0'),flagsViewOpen:'1',fontScale:14,fontUsePx:'0',j:1,lang:zig,libs:!(),options:'-O+ReleaseFast',overrides:!(),selection:(endColumn:1,endLineNumber:1,positionColumn:1,positionLineNumber:1,selectionStartColumn:1,selectionStartLineNumber:1,startColumn:1,startLineNumber:1),source:1),l:'5',n:'0',o:'+zig+0.16.0+(Editor+%231)',t:'0')),k:50.18312273659156,l:'4',m:100,n:'0',o:'',s:0,t:'0')),l:'2',n:'0',o:'',t:'0')),version:4
+
+Input code:
+
+```zig
+const SimdString = @Vector(32, u8);
+
+export fn findInStr(
+    haystack_ptr: [*]u8,
+    needle_ptr: [*]u8,
+) bool {
+    const haystack: []const u8 = haystack_ptr[0..32];
+    const needle: []const u8 = needle_ptr[0..32];
+
+    if (@intFromPtr(haystack.ptr) & 31 != 0) unreachable;
+    const haystack_vec: SimdString = haystack[0..32].*;
+    const needle_vec: SimdString = needle[0..32].*;
+    const eq = @as(u32, @bitCast(~(haystack_vec == needle_vec)));
+    if (eq & 0xffffffff != 0) return false;
+    return true;
+}
+```
+
+Output:
+
+```assembly
+example.findInStr:
+    push    rbp
+    mov     rbp, rsp
+    vmovdqa ymm0, ymmword ptr [rdi]
+    vpxor   ymm0, ymm0, ymmword ptr [rsi]
+    vptest  ymm0, ymm0
+    sete    al
+    pop     rbp
+    vzeroupper
+    ret
+```
