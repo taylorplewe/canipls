@@ -274,9 +274,9 @@ So basically, my simd version is a little faster because it uses 32-byte vectors
 
 EDIT (7/28/26): I realized the machine code output is doing _unaligned SIMD moves_. If I make sure every 32-byte-wide feature name is aligned to 32 bytes, I can use aligned SIMD instructions (`vmovdqa` instead of `vmovdqu`.) I'm very curious just how much of a perf increase that would be.
 
-Problem is, there's actually real people (not that much, but still) using canipls now, mostly thru VS Code, so just how I can safely modify the bin files will be tricky. I'd have to quickly (as atomically as possible) update canipls itself to the new parsing code which has the align check, so everyone gets the updated canipls version quickly that parses the new bin files correctly.
+Problem is, there's actually real people (not that much, but still) using canipls now, mostly thru VS Code, so just how I can safely modify the bin files will be tricky. I can't just update the bin files to be aligned, it will break everyone's canipls. I'm not sure if it will crash and make their editor freak out or not. I'd have to quickly (as atomically as possible) update canipls itself to the new parsing code which has the align check, so everyone gets the updated canipls version quickly that parses the new bin files correctly.
 
-I verified this in godbolt: by adding the following line before the memory read:
+I verified this in godbolt. by adding the following line before the memory read:
 
 ```zig
 // use aligned SIMD instruction (`vmovdqa`) instead of unaligned instruction (`vmovdqu`)
@@ -322,3 +322,52 @@ example.findInStr:
     vzeroupper
     ret
 ```
+
+I placed the following at the top of `Bin.searchRangeForSymbol()`:
+
+```zig
+const before = std.Io.Clock.now(.awake, this_io);
+```
+
+and this at the end, before the `return null`:
+
+```zig
+const after = std.Io.Clock.now(.awake, this_io);
+const duration = before.durationTo(after);
+log.info("bins.searchRangeForSymbol took {d} ns\n", .{duration.toNanoseconds()});
+```
+
+and then opening the following JS file (it only searches the long identifier on the second line):
+
+```javascript
+const this_is_a_long_identifier = 4;
+const another = this_is_a_long_identifier;
+```
+
+### Results before (ReleaseFast build):
+
+- 3,100 ns
+- 5,200 ns
+- 3,800 ns
+- 3,200 ns
+- 5,900 ns
+- 6,100 ns
+- 6,500 ns
+- 6,500 ns
+- 6,700 ns
+- 6,400 ns
+- 4,900 ns
+- 6,000 ns
+- 6,100 ns
+- 6,100 ns
+- 8,200 ns
+- 6,700 ns
+- 6,600 ns
+- 5,900 ns
+- 3,000 ns
+- 5,500 ns
+- 6,800 ns
+
+Whelp, I added my thing to change `vmovdqu` to `vmovdqa` and zero performance increase. The numbers after were all exactly the same as before.
+
+Upon further research, on modern processors, unaligned SIMD instructions perform actually exactly the same to their aligned counterparts--I even heard someone on Stack Overflow say sometimes the aligned versions are literally just aliases to the unaligned ones--but *there is still great performance to be had from aligning the memory* anyways.

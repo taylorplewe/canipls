@@ -4,7 +4,7 @@
 // These binary files contain global browser support data for most HTML, CSS & JavaScript features. They were designed to be extremely compact and efficient for the parsing that canipls will be doing.
 // The browser usage data is retrieved from caniuse.com's own browser usage table: https://caniuse.com/usage-table. This parsing is done in `parse-caniuse-support-html.cpp`.
 //
-// minimum canipls version: 0.0.5
+// minimum canipls version: 1.0.2
 //
 // binary file format is as follows:
 //  1. header section: 4 bytes
@@ -61,6 +61,9 @@
 #define SIZEOF_IDENTIFIER_SECTION_ENTRY STRING_PADDING_WIDTH
 #define SIZEOF_CIU_ID_ADDRS_SECTION_ENTRY sizeof(uint32_t)
 
+#define TESTING_MAX_NUM_TOTAL_FEATURES 128
+// #define IS_TESTING
+
 
 typedef union {
   float version;
@@ -83,7 +86,7 @@ char* zeroes = (char[ZEROES_LEN]){0};
 
 // little-endian, but I want it to appear in a hex viewer as [major minor patch]
 //                                    patch        minor      major
-const uint32_t min_canipls_version = (5  << 16) | (0  << 8) | 0;
+const uint32_t min_canipls_version = (2  << 16) | (0  << 8) | 1;
 
 enum struct TsNodeKind {
   HtmlTag,
@@ -201,7 +204,12 @@ int main(int argc, char** argv) {
     // set write positions of each section in each file
     for (int i = 0; i < (int)BinSection::Count; i++) {
       if (i == 0) pair.second.section_pos[i] = header_len;
-      else pair.second.section_pos[i] = pair.second.section_pos[i - 1] + section_lens[i - 1];
+      else {
+        size_t current_pos = pair.second.section_pos[i - 1] + section_lens[i - 1];
+        if (i == (int)BinSection::Identifier)
+          current_pos = (current_pos + 0b11111) & -32; // ensure identifiers are 32-byte aligned
+        pair.second.section_pos[i] = current_pos;
+      }
     }
   }
 
@@ -213,6 +221,7 @@ int main(int argc, char** argv) {
   }
 }
 
+/// Given a simdjson `ondemand::object` reference to a BCD `__compat` object, Get a pointer to a `CiuFeature` representing the feature
 CiuFeature* get_ciu_feature_from_compat_object(
   simdjson::ondemand::object& compat_obj,
   std::vector<std::string> bcd_level_names_lower,
@@ -369,6 +378,10 @@ CiuFeature* get_ciu_feature_from_compat_object(
   }
   if (out_bin_info == nullptr) return nullptr;
 
+  #ifdef IS_TESTING
+  if (out_bin_info->num_features_total == TESTING_MAX_NUM_TOTAL_FEATURES) return nullptr;
+  #endif
+
   std::ofstream* out = out_bin_info->stream;
 
   out_bin_info->num_features_total++;
@@ -432,12 +445,12 @@ CiuFeature* get_ciu_feature_from_compat_object(
 bool is_temporal_found = false;
 /// given a JSON object, presumably a subsection of MDN's browser-compat-data, append all features downstream of here with __compat entries to the output file
 void append_bcd_feature_tree(
-  std::vector<std::string> bcd_level_names_lower,
+  std::vector<std::string> bcd_level_names,
   simdjson::ondemand::object& obj,
   std::string last_key,
   CiuFeature* parent_feature
 ) {
-  // TEMP
+  // TEMP: this is a shortcut way of handling the 32-byte SIMD vectorized search problem with feature names >32; just ignore em lmao
   if (last_key.size() > STRING_PADDING_WIDTH) { // do NOT including tailing 0
     return;
   }
@@ -448,7 +461,7 @@ void append_bcd_feature_tree(
   auto maybe_compat = obj["__compat"];
   if (maybe_compat.has_value()) {
     simdjson::ondemand::object compat_obj = maybe_compat.value();
-    feature = get_ciu_feature_from_compat_object(compat_obj, bcd_level_names_lower, last_key, parent_feature);
+    feature = get_ciu_feature_from_compat_object(compat_obj, bcd_level_names, last_key, parent_feature);
     if (feature == nullptr) return;
   }
   obj.reset(); // simdjson docs discourage the use of `reset()` but because the `__compat` object AND the feature's children live in the same object, this is necessary. `__compat` must be processed before the children.
@@ -459,12 +472,12 @@ void append_bcd_feature_tree(
     auto sub_obj = field.value().get_object();
     if (sub_obj.has_value() && id != "__compat") {
       // keep traversing down the tree
-      auto new_level_names_lower = bcd_level_names_lower;
-      new_level_names_lower.push_back(std::basic_string<char>(id));
+      auto new_level_names = bcd_level_names;
+      new_level_names.push_back(std::basic_string<char>(id));
       std::transform(
-        new_level_names_lower.back().cbegin(),
-        new_level_names_lower.back().cend(),
-        new_level_names_lower.back().begin(),
+        new_level_names.back().cbegin(),
+        new_level_names.back().cend(),
+        new_level_names.back().begin(),
         [](int c){
           return c == '@'
             ? '-'
@@ -474,7 +487,7 @@ void append_bcd_feature_tree(
         }
       );
       append_bcd_feature_tree(
-        new_level_names_lower,
+        new_level_names,
         sub_obj.value(),
         std::string(id),
         feature
@@ -622,6 +635,14 @@ void write_bin_files() {
       pair.second.features,
       nullptr
     );
+    pair.second.stream->seekp(0, std::ios_base::end);
+    std::cout << "length: " << pair.second.stream->tellp() << std::endl;
+    int extra = pair.second.stream->tellp() & 0b111;
+    int leftover = 8 - extra;
+    if (extra != 0) {
+      std::cout << "leftover: " << leftover << std::endl;
+      pair.second.stream->write(zeroes, leftover);
+    }
   }
 }
 
