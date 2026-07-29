@@ -367,3 +367,7 @@ const another = this_is_a_long_identifier;
 - 3,000 ns
 - 5,500 ns
 - 6,800 ns
+
+Whelp, I added my thing to change `vmovdqu` to `vmovdqa` and zero performance increase. The numbers after were all exactly the same as before.
+
+Upon further research, on modern processors, unaligned SIMD instructions perform actually exactly the same to their aligned counterparts--I even heard someone on Stack Overflow say sometimes the aligned versions are literally just aliases to the unaligned ones--but *there is still great performance to be had from aligning the memory* anyways.
