@@ -10,8 +10,6 @@ const log = std.log.scoped(.canipls);
 
 const BIN_FILE_STRING_WIDTH = 32;
 
-var this_io: std.Io = undefined;
-
 const BinSection = enum {
     Support,
     CiuIdAddr,
@@ -111,7 +109,6 @@ const InitBinsError = error{
 const CANIPLS_BINS_URL = "https://whencaniuse.com/canipls-bins-new.tar.gz";
 
 pub fn init(server_allocator: std.mem.Allocator, io: std.Io, environ_map: *std.process.Environ.Map) !void {
-    this_io = io;
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
