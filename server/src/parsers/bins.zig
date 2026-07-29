@@ -38,6 +38,7 @@ const sizeof_entry_per_section: std.EnumArray(BinSection, usize) = blk: {
 const maybe_block_size = std.simd.suggestVectorLength(u8);
 const is_simd_vector_size_big_enough = if (maybe_block_size) |block_size| block_size >= 32 else false;
 const SimdString = @Vector(maybe_block_size orelse 8, u8);
+
 const Bin = struct {
     data: []const u8,
     num_features_total: usize,
