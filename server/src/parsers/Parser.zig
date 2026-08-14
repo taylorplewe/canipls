@@ -97,7 +97,7 @@ pub fn getDiagnosticsFromCode(
                 code,
             ) catch |err| {
                 log.err("could not get canipls-ignore spans: {}", .{err});
-                log.err("ignoring any canipls-ignore comments", .{});
+                log.warn("ignoring any canipls-ignore comments", .{});
                 break :blk &.{};
             };
         };

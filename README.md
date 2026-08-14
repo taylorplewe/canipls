@@ -205,11 +205,11 @@ Example:
 
 ---
 Credit
-- [zigtools/lsp-kit](https://github.com/zigtools/lsp-kit) handles the actual LSP communication
+- [zigtools/lsp-kit](https://github.com/zigtools/lsp-kit) handles the actual LSP communication layer
 - [MDN `browser-compat-data`](https://github.com/mdn/browser-compat-data) contains all the feature support data
 - [caniuse.com](https://caniuse.com), especially its [browser support table](https://caniuse.com/usage-table)
 
-If you come across any strange or incorrect behavior, please don't hesitate to open an issue or pull request.
+If you come across any strange or incorrect behavior, or have feature suggestions, please don't hesitate to open an issue or pull request!
 
 > [!NOTE]
 > This project is researched, designed, and written completely by hand. Among other reasons, **quality is a higher priority than quantity.** Pull requests that contain AI-generated content of any kind will be rejected.
