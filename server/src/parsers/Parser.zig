@@ -177,6 +177,17 @@ pub fn getDiagnosticsFromCode(
                         const maybe_feature_info = bins.getSymbolSupportInfoFromBin(symbol_stack);
                         if (maybe_feature_info) |feature_info| {
                             if (feature_info.support < config.config.support_threshold.?) {
+                                // CSS property inside @supports block? if so, ignore it
+                                if (is_css) {
+                                    const feature_name = symbol_stack[symbol_stack.len - 1].name;
+                                    for (supports_blocks) |supports_block| {
+                                        if (std.mem.eql(u8, feature_name, supports_block.feature_name)) {
+                                            if (node.startPoint().row > supports_block.row_start and node.endPoint().row <= supports_block.row_end)
+                                                continue :symbol_stack_loop;
+                                        }
+                                    }
+                                }
+
                                 // already found one as a child of one of the previous queries? those take precedence
                                 // TODO: see if this is the most efficient way of checking this
                                 // this effectively moves parsing a file & adding diagnostics from O(n) -> O(n log n)
@@ -421,7 +432,7 @@ fn getSupportBlocksFromCode(
     code: []const u8,
 ) ![]types.SupportsBlock {
     const QUERY_SUPPORTS_BLOCK = "(supports_statement) @block";
-    const QUERY_FEATURE_NAME = "(feature_query (feature_name)) @featurename";
+    const QUERY_FEATURE_NAME = "(feature_query (feature_name) @featurename)";
 
     const cursor = ts.QueryCursor.create();
     defer cursor.destroy();

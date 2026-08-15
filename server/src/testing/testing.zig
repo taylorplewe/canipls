@@ -10,9 +10,9 @@ const html = @import("../parsers/html.zig");
 const astro = @import("../parsers/astro.zig");
 const svelte = @import("../parsers/svelte.zig");
 
-// The default Zig test runner runs every `test` block one after the other. There is not one overarching process code (other than the test runner) where you can set up and tear down stuff for the whole testing process.
+// The default Zig test runner runs every `test` block one after the other; they might run asynchronously(?). There is not one overarching process code (other than the test runner) where you can set up and tear down stuff for the whole testing process.
 //
-// Because of this, for now I'm just putting the entire program's test code into one `test` block. I think the solution is to write my own test runner.
+// Because of this, for now I'm just putting the entire program's test code into one `test` block. (The better solution is to write my own test runner.)
 test {
     // init tree-sitter parsers
     lsp_to_ts.init();
