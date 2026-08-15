@@ -436,6 +436,8 @@ fn getSupportBlocksFromCode(
 
     const cursor = ts.QueryCursor.create();
     defer cursor.destroy();
+    const cursor_feature_name = ts.QueryCursor.create();
+    defer cursor_feature_name.destroy();
 
     var error_offset: u32 = 0;
     const supports_block_query = ts.Query.create(lang, QUERY_SUPPORTS_BLOCK, &error_offset) catch |err| {
@@ -455,8 +457,6 @@ fn getSupportBlocksFromCode(
         const supports_block_node = match.captures[0].node;
 
         // search for feature name inside that @supports statement
-        const cursor_feature_name = ts.QueryCursor.create();
-        defer cursor_feature_name.destroy();
         cursor_feature_name.exec(supports_feature_name_query, supports_block_node);
         if (cursor_feature_name.nextMatch()) |match_feature_name| {
             const supports_feature_name_node = match_feature_name.captures[0].node;
