@@ -103,7 +103,8 @@ pub fn getDiagnosticsFromCode(
         };
         defer allocator.free(ignored_spans);
 
-        const supports_blocks = blk: {
+        const is_css = if (lang.name()) |name| std.mem.eql(u8, name, "css") else false;
+        const supports_blocks: []types.SupportsBlock = if (is_css) blk: {
             break :blk getSupportBlocksFromCode(
                 allocator,
                 lang,
@@ -113,7 +114,12 @@ pub fn getDiagnosticsFromCode(
                 log.err("could not get @supports blocks: {}", .{err});
                 break :blk &.{};
             };
-        };
+        } else &.{};
+        defer {
+            for (supports_blocks) |supports_block| {
+                allocator.free(supports_block.feature_name);
+            }
+        }
         defer allocator.free(supports_blocks);
 
         if (ignored_spans.len == 1) {
@@ -404,11 +410,6 @@ fn getIgnoreSpansFromCode(
     return try ignored_spans.toOwnedSlice(allocator);
 }
 
-// @supports statement searching
-// CSS TS query:
-// (supports_statement (feature_query (feature_name @featurename)))
-// with a TS node you can do `node.startPoint().row` and `node.endPoint().row`
-
 /// Gather all the @supports blocks (type: `SupportsBlock`) from CSS code
 ///
 /// Caller owns returned memory
@@ -419,26 +420,43 @@ fn getSupportBlocksFromCode(
     root_node: *ts.Node,
     code: []const u8,
 ) ![]types.SupportsBlock {
-    const QUERY = "supports_statement (feature_query (feature_name) @featurename)";
+    const QUERY_SUPPORTS_BLOCK = "(supports_statement) @block";
+    const QUERY_FEATURE_NAME = "(feature_query (feature_name)) @featurename";
 
     const cursor = ts.QueryCursor.create();
     defer cursor.destroy();
 
     var error_offset: u32 = 0;
-    const supports_feature_name_query = ts.Query.create(lang, QUERY, &error_offset) catch |err| {
+    const supports_block_query = ts.Query.create(lang, QUERY_SUPPORTS_BLOCK, &error_offset) catch |err| {
         log.err("could not create tree-sitter @supports block query", .{});
+        return err;
+    };
+    defer supports_block_query.destroy();
+    const supports_feature_name_query = ts.Query.create(lang, QUERY_FEATURE_NAME, &error_offset) catch |err| {
+        log.err("could not create tree-sitter @supports feature name", .{});
         return err;
     };
     defer supports_feature_name_query.destroy();
 
     var supports_blocks: std.ArrayList(types.SupportsBlock) = .empty;
-    cursor.exec(supports_feature_name_query, root_node.*);
-
+    cursor.exec(supports_block_query, root_node.*);
     while (cursor.nextMatch()) |match| {
-        const supports_feature_name_node = match.captures[0].node;
-        const supports_feature_name = code[supports_feature_name_node.startByte()..supports_feature_name_node.endByte()];
+        const supports_block_node = match.captures[0].node;
 
-        log.info("supports feature name: {s}", .{supports_feature_name});
+        // search for feature name inside that @supports statement
+        const cursor_feature_name = ts.QueryCursor.create();
+        defer cursor_feature_name.destroy();
+        cursor_feature_name.exec(supports_feature_name_query, supports_block_node);
+        if (cursor_feature_name.nextMatch()) |match_feature_name| {
+            const supports_feature_name_node = match_feature_name.captures[0].node;
+            const supports_feature_name = code[supports_feature_name_node.startByte()..supports_feature_name_node.endByte()];
+
+            try supports_blocks.append(allocator, .{
+                .feature_name = try allocator.dupe(u8, supports_feature_name),
+                .row_start = supports_block_node.startPoint().row,
+                .row_end = supports_block_node.endPoint().row,
+            });
+        }
     }
 
     return try supports_blocks.toOwnedSlice(allocator);
