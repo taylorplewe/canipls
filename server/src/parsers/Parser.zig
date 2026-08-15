@@ -103,6 +103,19 @@ pub fn getDiagnosticsFromCode(
         };
         defer allocator.free(ignored_spans);
 
+        const supports_blocks = blk: {
+            break :blk getSupportBlocksFromCode(
+                allocator,
+                lang,
+                &root_node,
+                code,
+            ) catch |err| {
+                log.err("could not get @supports blocks: {}", .{err});
+                break :blk &.{};
+            };
+        };
+        defer allocator.free(supports_blocks);
+
         if (ignored_spans.len == 1) {
             switch (ignored_spans[0]) {
                 .whole_file => return &.{},
@@ -389,6 +402,46 @@ fn getIgnoreSpansFromCode(
     }
 
     return try ignored_spans.toOwnedSlice(allocator);
+}
+
+// @supports statement searching
+// CSS TS query:
+// (supports_statement (feature_query (feature_name @featurename)))
+// with a TS node you can do `node.startPoint().row` and `node.endPoint().row`
+
+/// Gather all the @supports blocks (type: `SupportsBlock`) from CSS code
+///
+/// Caller owns returned memory
+fn getSupportBlocksFromCode(
+    allocator: std.mem.Allocator,
+    /// This should obviously always be CSS, but the function still needs a pointer to the TS language object
+    lang: *ts.Language,
+    root_node: *ts.Node,
+    code: []const u8,
+) ![]types.SupportsBlock {
+    const QUERY = "supports_statement (feature_query (feature_name) @featurename)";
+
+    const cursor = ts.QueryCursor.create();
+    defer cursor.destroy();
+
+    var error_offset: u32 = 0;
+    const supports_feature_name_query = ts.Query.create(lang, QUERY, &error_offset) catch |err| {
+        log.err("could not create tree-sitter @supports block query", .{});
+        return err;
+    };
+    defer supports_feature_name_query.destroy();
+
+    var supports_blocks: std.ArrayList(types.SupportsBlock) = .empty;
+    cursor.exec(supports_feature_name_query, root_node.*);
+
+    while (cursor.nextMatch()) |match| {
+        const supports_feature_name_node = match.captures[0].node;
+        const supports_feature_name = code[supports_feature_name_node.startByte()..supports_feature_name_node.endByte()];
+
+        log.info("supports feature name: {s}", .{supports_feature_name});
+    }
+
+    return try supports_blocks.toOwnedSlice(allocator);
 }
 
 /// Check the config option `ignored_feature_ids` to see if a given feature's caniuse ID is on the ignore list
