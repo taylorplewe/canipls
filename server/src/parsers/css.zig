@@ -63,12 +63,12 @@ const AtRulesContext = struct {
         node: *const ts.Node,
         is_first_node: bool,
         // TODO: I hate that this is here
-        c: []const u8,
+        code: []const u8,
         // TODO: I hate that this is here
         a: std.mem.Allocator,
     ) std.mem.Allocator.Error![]const []const bins.BinSearchSymbolInfo {
         const start_index: usize = if (is_first_node or std.mem.eql(u8, node.kind(), "at_keyword")) 1 else 0;
-        const name = c[node.startByte() + start_index .. node.endByte()];
+        const name = code[node.startByte() + start_index .. node.endByte()];
         if (is_first_node) {
             at_rule_name = name;
             return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
@@ -115,13 +115,13 @@ const SelectorsContext = struct {
     pub fn callback(
         node: *const ts.Node,
         is_first_node: bool,
-        c: []const u8,
+        code: []const u8,
         a: std.mem.Allocator,
     ) std.mem.Allocator.Error![]const []const bins.BinSearchSymbolInfo {
         const name = if (!is_first_node and node_kind_str_to_enum.get(node.kind()) == types.TsNodeKind.CssUniversalSelector)
             "star"
         else
-            c[node.startByte()..node.endByte()];
+            code[node.startByte()..node.endByte()];
 
         if (is_first_node) {
             selector_name = name;
@@ -158,10 +158,10 @@ const PropertiesContext = struct {
     pub fn callback(
         node: *const ts.Node,
         is_first_node: bool,
-        c: []const u8,
+        code: []const u8,
         a: std.mem.Allocator,
     ) std.mem.Allocator.Error![]const []const bins.BinSearchSymbolInfo {
-        const name = c[node.startByte()..node.endByte()];
+        const name = code[node.startByte()..node.endByte()];
 
         if (is_first_node) {
             property_name = name;

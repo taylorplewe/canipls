@@ -10,9 +10,9 @@ const html = @import("../parsers/html.zig");
 const astro = @import("../parsers/astro.zig");
 const svelte = @import("../parsers/svelte.zig");
 
-// The default Zig test runner runs every `test` block one after the other. There is not one overarching process code (other than the test runner) where you can set up and tear down stuff for the whole testing process.
+// The default Zig test runner runs every `test` block one after the other; they might run asynchronously(?). There is not one overarching process code (other than the test runner) where you can set up and tear down stuff for the whole testing process.
 //
-// Because of this, for now I'm just putting the entire program's test code into one `test` block. I think the solution is to write my own test runner.
+// Because of this, for now I'm just putting the entire program's test code into one `test` block. (The better solution is to write my own test runner.)
 test {
     // init tree-sitter parsers
     lsp_to_ts.init();
@@ -123,6 +123,23 @@ test {
         try std.testing.expectEqualStrings("root", hover_info.?.identifier);
         try std.testing.expectEqualStrings("css_selectors_root", hover_info.?.caniuse_id);
         try std.testing.expect(hover_info.?.support_percentage > 95.0);
+    }
+    {
+        // @supports ignoring
+        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer arena.deinit();
+        const code =
+            \\.some-el {
+            \\    column-rule-inset: 5px;
+            \\}
+            \\@supports (column-rule-inset: 5px) {
+            \\    .some-el {
+            \\        column-rule-inset: 5px;
+            \\    }
+            \\}
+        ;
+        const diagnostics = css.CssParser().parse(arena.allocator(), code, 0, 0);
+        try std.testing.expectEqual(1, diagnostics.len);
     }
     {
         var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);

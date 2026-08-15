@@ -24,6 +24,13 @@ pub const IgnoredSpan = union(enum) {
     whole_file,
 };
 
+/// Represents a @supports block in CSS code, in which the feature `XYZ` inside the `@supports(XYZ)` block should be ignored
+pub const SupportsBlock = struct {
+    feature_name: []const u8,
+    row_start: usize,
+    row_end: usize,
+};
+
 /// NOTE: the members of this enum must match exactly those of the `TsNodeKind` enum in `parse-bcd-json.cpp`
 pub const TsNodeKind = enum {
     HtmlTag,

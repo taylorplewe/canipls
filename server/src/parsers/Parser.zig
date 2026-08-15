@@ -97,11 +97,30 @@ pub fn getDiagnosticsFromCode(
                 code,
             ) catch |err| {
                 log.err("could not get canipls-ignore spans: {}", .{err});
-                log.err("ignoring any canipls-ignore comments", .{});
+                log.warn("ignoring any canipls-ignore comments", .{});
                 break :blk &.{};
             };
         };
         defer allocator.free(ignored_spans);
+
+        const is_css = if (lang.name()) |name| std.mem.eql(u8, name, "css") else false;
+        const supports_blocks: []types.SupportsBlock = if (is_css) blk: {
+            break :blk getSupportBlocksFromCode(
+                allocator,
+                lang,
+                &root_node,
+                code,
+            ) catch |err| {
+                log.err("could not get @supports blocks: {}", .{err});
+                break :blk &.{};
+            };
+        } else &.{};
+        defer {
+            for (supports_blocks) |supports_block| {
+                allocator.free(supports_block.feature_name);
+            }
+            allocator.free(supports_blocks);
+        }
 
         if (ignored_spans.len == 1) {
             switch (ignored_spans[0]) {
@@ -158,6 +177,17 @@ pub fn getDiagnosticsFromCode(
                         const maybe_feature_info = bins.getSymbolSupportInfoFromBin(symbol_stack);
                         if (maybe_feature_info) |feature_info| {
                             if (feature_info.support < config.config.support_threshold.?) {
+                                // CSS property inside @supports block? if so, ignore it
+                                if (is_css) {
+                                    const feature_name = symbol_stack[symbol_stack.len - 1].name;
+                                    for (supports_blocks) |supports_block| {
+                                        if (std.mem.eql(u8, feature_name, supports_block.feature_name)) {
+                                            if (node.startPoint().row > supports_block.row_start and node.endPoint().row <= supports_block.row_end)
+                                                continue :symbol_stack_loop;
+                                        }
+                                    }
+                                }
+
                                 // already found one as a child of one of the previous queries? those take precedence
                                 // TODO: see if this is the most efficient way of checking this
                                 // this effectively moves parsing a file & adding diagnostics from O(n) -> O(n log n)
@@ -389,6 +419,58 @@ fn getIgnoreSpansFromCode(
     }
 
     return try ignored_spans.toOwnedSlice(allocator);
+}
+
+/// Gather all the @supports blocks (type: `SupportsBlock`) from CSS code
+///
+/// Caller owns returned memory
+fn getSupportBlocksFromCode(
+    allocator: std.mem.Allocator,
+    /// This should obviously always be CSS, but the function still needs a pointer to the TS language object
+    lang: *ts.Language,
+    root_node: *ts.Node,
+    code: []const u8,
+) ![]types.SupportsBlock {
+    const QUERY_SUPPORTS_BLOCK = "(supports_statement) @block";
+    const QUERY_FEATURE_NAME = "(feature_query (feature_name) @featurename)";
+
+    const cursor = ts.QueryCursor.create();
+    defer cursor.destroy();
+    const cursor_feature_name = ts.QueryCursor.create();
+    defer cursor_feature_name.destroy();
+
+    var error_offset: u32 = 0;
+    const supports_block_query = ts.Query.create(lang, QUERY_SUPPORTS_BLOCK, &error_offset) catch |err| {
+        log.err("could not create tree-sitter @supports block query", .{});
+        return err;
+    };
+    defer supports_block_query.destroy();
+    const supports_feature_name_query = ts.Query.create(lang, QUERY_FEATURE_NAME, &error_offset) catch |err| {
+        log.err("could not create tree-sitter @supports feature name", .{});
+        return err;
+    };
+    defer supports_feature_name_query.destroy();
+
+    var supports_blocks: std.ArrayList(types.SupportsBlock) = .empty;
+    cursor.exec(supports_block_query, root_node.*);
+    while (cursor.nextMatch()) |match| {
+        const supports_block_node = match.captures[0].node;
+
+        // search for feature name inside that @supports statement
+        cursor_feature_name.exec(supports_feature_name_query, supports_block_node);
+        if (cursor_feature_name.nextMatch()) |match_feature_name| {
+            const supports_feature_name_node = match_feature_name.captures[0].node;
+            const supports_feature_name = code[supports_feature_name_node.startByte()..supports_feature_name_node.endByte()];
+
+            try supports_blocks.append(allocator, .{
+                .feature_name = try allocator.dupe(u8, supports_feature_name),
+                .row_start = supports_block_node.startPoint().row,
+                .row_end = supports_block_node.endPoint().row,
+            });
+        }
+    }
+
+    return try supports_blocks.toOwnedSlice(allocator);
 }
 
 /// Check the config option `ignored_feature_ids` to see if a given feature's caniuse ID is on the ignore list
