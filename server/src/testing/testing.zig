@@ -125,6 +125,23 @@ test {
         try std.testing.expect(hover_info.?.support_percentage > 95.0);
     }
     {
+        // @supports ignoring
+        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer arena.deinit();
+        const code =
+            \\.some-el {
+            \\    column-rule-inset: 5px;
+            \\}
+            \\@supports (column-rule-inset: 5px) {
+            \\    .some-el {
+            \\        column-rule-inset: 5px;
+            \\    }
+            \\}
+        ;
+        const diagnostics = css.CssParser().parse(arena.allocator(), code, 0, 0);
+        try std.testing.expectEqual(1, diagnostics.len);
+    }
+    {
         var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
         defer arena.deinit();
         const code =

@@ -119,8 +119,8 @@ pub fn getDiagnosticsFromCode(
             for (supports_blocks) |supports_block| {
                 allocator.free(supports_block.feature_name);
             }
+            allocator.free(supports_blocks);
         }
-        defer allocator.free(supports_blocks);
 
         if (ignored_spans.len == 1) {
             switch (ignored_spans[0]) {
