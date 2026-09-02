@@ -92,18 +92,26 @@ const SelectorsContext = struct {
     const QUERY =
         \\(
         \\  (selectors
-        \\    (_
-        \\      [
-        \\        (tag_name) @tagname
+        \\    [
+        \\      (pseudo_class_selector
         \\        (class_name) @classname
-        \\      ]
-        \\      (arguments
-        \\        [
-        \\          (tag_name) @tagname
-        \\          (universal_selector) @star
-        \\        ]
-        \\      )?
-        \\    )
+        \\        (arguments
+        \\          [
+        \\            (tag_name) @argtagname
+        \\            (universal_selector) @star
+        \\          ]
+        \\        )?
+        \\      )
+        \\      (pseudo_element_selector
+        \\        (tag_name) @tagname
+        \\        (arguments
+        \\          [
+        \\            (tag_name) @argtagname
+        \\            (universal_selector) @star
+        \\          ]
+        \\        )?
+        \\      )
+        \\    ]
         \\  )
         \\  (block
         \\    (declaration (property_name) @propname)*
