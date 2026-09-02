@@ -112,6 +112,8 @@ test {
             \\}
             \\:root {
             \\}
+            \\.heading {
+            \\}
         ;
         const diagnostics = css.CssParser().parse(arena.allocator(), code, 0, 0);
         try std.testing.expectEqual(4, diagnostics.len);
