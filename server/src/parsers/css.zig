@@ -65,22 +65,22 @@ const AtRulesContext = struct {
         // TODO: I hate that this is here
         code: []const u8,
         // TODO: I hate that this is here
-        a: std.mem.Allocator,
+        arena: std.mem.Allocator,
     ) std.mem.Allocator.Error![]const []const bins.BinSearchSymbolInfo {
         const start_index: usize = if (is_first_node or std.mem.eql(u8, node.kind(), "at_keyword")) 1 else 0;
         const name = code[node.startByte() + start_index .. node.endByte()];
         if (is_first_node) {
             at_rule_name = name;
-            return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
-                try a.dupe(bins.BinSearchSymbolInfo, &.{
+            return try arena.dupe([]const bins.BinSearchSymbolInfo, &.{
+                try arena.dupe(bins.BinSearchSymbolInfo, &.{
                     .{ .name = name, .node_kind = .CssAtRule },
                 }),
             });
         }
 
         const node_kind = node_kind_str_to_enum.get(node.kind()) orelse return &.{};
-        return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
-            try a.dupe(bins.BinSearchSymbolInfo, &.{
+        return try arena.dupe([]const bins.BinSearchSymbolInfo, &.{
+            try arena.dupe(bins.BinSearchSymbolInfo, &.{
                 .{ .name = at_rule_name.?, .node_kind = .CssAtRule },
                 .{ .name = name, .node_kind = node_kind },
             }),
@@ -92,18 +92,26 @@ const SelectorsContext = struct {
     const QUERY =
         \\(
         \\  (selectors
-        \\    (_
-        \\      [
-        \\        (tag_name) @tagname
+        \\    [
+        \\      (pseudo_class_selector
         \\        (class_name) @classname
-        \\      ]
-        \\      (arguments
-        \\        [
-        \\          (tag_name) @tagname
-        \\          (universal_selector) @star
-        \\        ]
-        \\      )?
-        \\    )
+        \\        (arguments
+        \\          [
+        \\            (tag_name) @argtagname
+        \\            (universal_selector) @star
+        \\          ]
+        \\        )?
+        \\      )
+        \\      (pseudo_element_selector
+        \\        (tag_name) @tagname
+        \\        (arguments
+        \\          [
+        \\            (tag_name) @argtagname
+        \\            (universal_selector) @star
+        \\          ]
+        \\        )?
+        \\      )
+        \\    ]
         \\  )
         \\  (block
         \\    (declaration (property_name) @propname)*
@@ -116,7 +124,7 @@ const SelectorsContext = struct {
         node: *const ts.Node,
         is_first_node: bool,
         code: []const u8,
-        a: std.mem.Allocator,
+        arena: std.mem.Allocator,
     ) std.mem.Allocator.Error![]const []const bins.BinSearchSymbolInfo {
         const name = if (!is_first_node and node_kind_str_to_enum.get(node.kind()) == types.TsNodeKind.CssUniversalSelector)
             "star"
@@ -125,16 +133,16 @@ const SelectorsContext = struct {
 
         if (is_first_node) {
             selector_name = name;
-            return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
-                try a.dupe(bins.BinSearchSymbolInfo, &.{
+            return try arena.dupe([]const bins.BinSearchSymbolInfo, &.{
+                try arena.dupe(bins.BinSearchSymbolInfo, &.{
                     .{ .name = name, .node_kind = .CssSelector },
                 }),
             });
         }
 
         const node_kind = node_kind_str_to_enum.get(node.kind()) orelse return &.{};
-        return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
-            try a.dupe(bins.BinSearchSymbolInfo, &.{
+        return try arena.dupe([]const bins.BinSearchSymbolInfo, &.{
+            try arena.dupe(bins.BinSearchSymbolInfo, &.{
                 .{ .name = selector_name.?, .node_kind = .CssSelector },
                 .{ .name = name, .node_kind = node_kind },
             }),
@@ -159,22 +167,22 @@ const PropertiesContext = struct {
         node: *const ts.Node,
         is_first_node: bool,
         code: []const u8,
-        a: std.mem.Allocator,
+        arena: std.mem.Allocator,
     ) std.mem.Allocator.Error![]const []const bins.BinSearchSymbolInfo {
         const name = code[node.startByte()..node.endByte()];
 
         if (is_first_node) {
             property_name = name;
-            return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
-                try a.dupe(bins.BinSearchSymbolInfo, &.{
+            return try arena.dupe([]const bins.BinSearchSymbolInfo, &.{
+                try arena.dupe(bins.BinSearchSymbolInfo, &.{
                     .{ .name = name, .node_kind = .CssProperty },
                 }),
             });
         }
 
         const node_kind = node_kind_str_to_enum.get(node.kind()) orelse return &.{};
-        return try a.dupe([]const bins.BinSearchSymbolInfo, &.{
-            try a.dupe(bins.BinSearchSymbolInfo, &.{
+        return try arena.dupe([]const bins.BinSearchSymbolInfo, &.{
+            try arena.dupe(bins.BinSearchSymbolInfo, &.{
                 .{ .name = property_name.?, .node_kind = .CssProperty },
                 .{ .name = name, .node_kind = node_kind },
             }),
